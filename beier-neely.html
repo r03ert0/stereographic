@@ -1,0 +1,240 @@
+<html>
+<head>
+<style>
+html,body {
+	width:100%;
+	height:100%;
+	margin:0;
+}
+canvas {
+	border:thin solid grey;
+	width:600px;
+	height:300px;
+}
+</style>
+</head>
+<body>
+
+<canvas id='one'>
+</canvas>
+
+<br />
+<b>Spherical Beier and Neely's morphing algorithm.</b> The discs are
+stereographic projections of a sphere. Draw a line segment on the left,
+then on the right. A grid of points will be drawn on the left, and its
+deformation on the right. Add more line segment pairs, and you will
+see the result of the combined influence of the sets of lines.
+
+<script src="lib/jquery-1.8.2.min.js"></script>
+<script src="lib/paper-full.min.js"></script>
+<script>
+function min(x,y) {
+	return (x<y)?x:y;
+}
+function dot3D(a, b)
+{
+    return a.x*b.x+a.y*b.y+a.z*b.z;
+}
+function cross3D(a, b)
+{
+    return {x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x};
+}
+function add3D(a, b)
+{
+    return {x:a.x+b.x,y:a.y+b.y,z:a.z+b.z};
+}
+function sub3D(a, b)
+{
+    return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z};
+}
+function sca3D(a, t)
+{
+    return {x:a.x*t,y:a.y*t,z:a.z*t};
+}
+function norm3D(a)
+{
+    return Math.sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
+}
+</script>
+<script>
+function stereographic2sphere(xy) {
+	var z,f,x,y;
+	var b=Math.sqrt(xy.x*xy.x+xy.y*xy.y);
+	if(b==0) {
+		x=0;
+		y=0;
+		z=1;
+	}
+	else {
+		z=Math.cos(b);
+		f=Math.sqrt(1-z*z);
+		x=xy.x*f/b;
+		y=xy.y*f/b;
+	}
+	return {x:x,y:y,z:z};
+}
+function sphere2stereographic(xyz) {
+	var a=Math.atan2(xyz.y,xyz.x);
+	var b=Math.acos(xyz.z/Math.sqrt(xyz.x*xyz.x+xyz.y*xyz.y+xyz.z*xyz.z));
+	var x=b*Math.cos(a);
+	var y=b*Math.sin(a);
+	return {x:x,y:y};
+}
+function transform(l, w)
+{
+	var i;
+	var p,q,r,q1;
+	var tmp,x0,x1;
+	var sumw;
+	var a,b,length;
+	var xy;
+	
+	tmp={x:0,y:0,z:0};
+	sumw=0;
+	for(i=0;i<l.length;i++)
+	{
+		p=stereographic2sphere(l[i].a);
+		q=stereographic2sphere(l[i].b);
+		r=cross3D(p,q);
+		r=sca3D(r,1/norm3D(r));
+		q1=cross3D(r,p);
+		a=w[i].c.x;
+		length=Math.acos(dot3D(p,q));
+		b=length*w[i].c.y;
+		xy={x:b*Math.cos(a),y:b*Math.sin(a)};
+		x0=stereographic2sphere(xy);
+		x0=add3D(add3D(sca3D(q1,x0.x),sca3D(r,x0.y)),sca3D(p,x0.z));
+		tmp=add3D(tmp,sca3D(x0,w[i].w));
+		sumw+=w[i].w;
+	}
+	x1=sphere2stereographic(sca3D(tmp,1/sumw));
+	return x1;
+}
+function weights(l, x)
+{
+	var i;
+	var length,dist;
+	var a,b,c;
+	var fa,fb,t;
+	var p,q,r,q1,x1;
+	var tmp;
+	var we={},w=[];
+	
+	a=0.1;		// if a=0, there's no influence of line length on the weights
+	b=0.0001;	// a small number to ensure that the weights are defined even over the line
+	c=2;		// a value that determines how quickly the influence of a line decreases with distance
+	
+	x1=stereographic2sphere(x);
+	for(i=0;i<l.length;i++)
+	{
+		p=stereographic2sphere(l[i].a);
+		q=stereographic2sphere(l[i].b);
+		r=cross3D(p,q);
+		r=sca3D(r,1/norm3D(r));
+		q1=cross3D(r,p);
+		// coordinates
+		we.c={
+			x:Math.atan2(dot3D(x1,r),dot3D(x1,q1)),
+			y:Math.acos(dot3D(x1,p))/Math.acos(dot3D(p,q))
+		};
+		// weight
+		length=Math.acos(dot3D(p,q));
+		fa=Math.pow(length,a);
+		// transformed coordinate
+		t=Math.acos(dot3D(p,x1))/(Math.acos(dot3D(p,x1))+Math.acos(dot3D(q,x1)));
+		tmp=add3D(sca3D(p,1-t),sca3D(q,t));
+		tmp=sca3D(tmp,1/norm3D(tmp));
+		dist=Math.acos(dot3D(tmp,x1));
+		fb=b+(min(min(Math.acos(dot3D(p,x1)),Math.acos(dot3D(q,x1))),dist));
+		we.w=Math.pow(10*fa/fb,c);
+		w.push({c:{x:we.c.x,y:we.c.y},w:we.w});
+	}
+	
+	return w;
+}
+</script>
+<script>
+	var mouseIsDown=false;
+	var region,l1=[],l2=[];
+	var gr=[];
+	paper.setup($("#one")[0]);
+	
+	var ci=new paper.Path.Circle(150,150,100);
+	ci.fill='none';
+	ci.strokeColor='black';
+	
+	ci=new paper.Path.Circle(450,150,100);
+	ci.fill='none';
+	ci.strokeColor='blue';
+	paper.view.draw();
+
+	$("#one").on("mousedown",function(e) {mouseDown(e.originalEvent.layerX,e.originalEvent.layerY);});
+	$("#one").on("mousemove",function(e) {mouseDrag(e.originalEvent.layerX,e.originalEvent.layerY);});
+	$("#one").on("mouseup",function(e) {mouseUp(e);});
+	
+	function mouseDown(x,y) {
+		mouseIsDown=true;
+		var point=paper.view.viewToProject(new paper.Point(x,y));
+		region=new paper.Path({segments:[point,point]});
+		region.strokeWidth=3;
+		if(Math.pow(point.x-150,2)+Math.pow(point.y-150,2)<100*100)
+			region.strokeColor='black';
+		else
+			region.strokeColor='blue';
+	}
+	function mouseDrag(x,y) {
+		if(!mouseIsDown)
+			return;
+		var point=paper.view.viewToProject(new paper.Point(x,y));
+		region.segments[1].point=point;
+		paper.view.draw();
+	}
+	function mouseUp(e) {
+		mouseIsDown=false;
+		
+		var r=100;
+		var pa=region.segments[0].point;
+		var pb=region.segments[1].point;
+		var sa,sb;
+		if(Math.pow(pa.x-150,2)+Math.pow(pa.y-150,2)<r*r) {
+			sa={x:(pa.x-150)*Math.PI/r,y:(pa.y-150)*Math.PI/r};
+			sb={x:(pb.x-150)*Math.PI/r,y:(pb.y-150)*Math.PI/r};
+			l1.push({a:sa,b:sb});
+			return;
+		}
+		else {
+			sa={x:(pa.x-450)*Math.PI/r,y:(pa.y-150)*Math.PI/r};
+			sb={x:(pb.x-450)*Math.PI/r,y:(pb.y-150)*Math.PI/r};
+			l2.push({a:sa,b:sb});
+		}
+		
+		var w;
+		var x1,x2;
+		var i,j,po;
+		
+		if(gr.length>0)
+			for(i=0;i<gr.length;i++)
+				gr[i].remove();
+
+		// transform a grid of points
+		for(i=0;i<2*Math.PI;i+=2*Math.PI/8)
+		for(j=0;j<Math.PI;j+=Math.PI/32)
+		{
+			x1={x:j*Math.cos(i),y:j*Math.sin(i)};
+			w=weights(l1,x1);
+			x2=transform(l2,w);
+			
+			po=new paper.Path.Circle(150+(r/Math.PI)*x1.x,150+(r/Math.PI)*x1.y,2);
+			po.fillColor='black';
+			gr.push(po);
+
+			po=new paper.Path.Circle(450+(r/Math.PI)*x2.x,150+(r/Math.PI)*x2.y,2);
+			po.fillColor='blue';
+			gr.push(po);
+		}
+		paper.view.draw();
+	}	
+</script>
+
+</body>
+</html>
