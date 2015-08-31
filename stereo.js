@@ -11,11 +11,17 @@ var handle;			// currently selected control point or handle (if any)
 var selectedTool;	// currently selected tool
 var newRegionFlag;	
 
+var zoom=1;
+var aspectRatio=1;
+var uniforms={zoom:{type:'f',value:zoom},aspectRatio:{type:'f',value:aspectRatio}};
+
 var mouseIsDown=false;
 var navEnabled;
 var counter=1;	// for path unique ID
 
 var filename="Untitled";
+
+var arrows=[];
 
 function regionUniqueID() {
 	var i;
@@ -211,17 +217,19 @@ function mouseUp() {
 }
 function convertReferencePathsToScreen() {
 	var i,j,p,hi,ho;
+
+	// arrow: remove previous arrows
+	if(arrows.length) {
+		for(i in arrows)
+			arrows[i].remove();
+	}
+
 	for(j in Regions) {
 		var path=Regions[j].path;
 		var path0=Regions[j].path0;
 		if(path0==undefined)
 			continue;
 
-// arrow
-/*
-		if(path.segments.length>path0.length)
-			path.segments[path.segments.length-1].remove();
-*/
 		for(i=0;i<path.segments.length;i++) {
 			p=direct(path0[i].px,path0[i].py);
 			p=stereographic2screen(p.x,p.y);
@@ -242,6 +250,30 @@ function convertReferencePathsToScreen() {
 				path.segments[i].handleOut.y=ho.y-p.y;
 			}
 		}
+		
+		// arrow: add arrow and path name
+		var ns=path.segments.length;
+		var lp0=path.segments[ns-2].point;
+		var lp1=paper.view.viewToProject(new paper.Point(path.segments[ns-1].point));
+		var iv={x:lp0.x-lp1.x,y:lp0.y-lp1.y};
+		var niv=Math.sqrt(iv.x*iv.x+iv.y*iv.y);
+		iv.x*=10/niv;
+		iv.y*=10/niv;
+		var jv={x:-iv.y,y:iv.x};
+		var path=new paper.Path();
+		var ap=paper.view.viewToProject(new paper.Point(lp1.x-jv.x+iv.x,lp1.y-jv.y+iv.y));
+		var bp=paper.view.viewToProject(new paper.Point(lp1.x+jv.x+iv.x,lp1.y+jv.y+iv.y));
+		path.add(ap);
+		path.add(lp1);
+		path.add(bp);
+		path.strokeWidth=1;
+		path.strokeColor='black';
+		arrows.push(path);
+		var text = new paper.PointText(Regions[j].path.segments[parseInt(Regions[j].path.segments.length/2)].point);
+		text.justification = 'center';
+		text.fillColor = 'white';
+		text.content = Regions[j].name;
+		arrows.push(text);
 	}
 }
 function convertScreenPathToReference(region) {
@@ -250,20 +282,6 @@ function convertScreenPathToReference(region) {
 	var path=region.path;
 	var path0=region.path0;
 	var segmentCount=path.segments.length;
-	
-	// add arrow to screen path
-	/*
-	var ns=path.segments.length;
-	var lp0=path.segments[ns-2].point;
-	var lp1=path.segments[ns-1].point;
-	var iv={x:lp0.x-lp1.x,y:lp0.y-lp1.y};
-	var niv=Math.sqrt(iv.x*iv.x+iv.y*iv.y);
-	iv.x*=10/niv;
-	iv.y*=10/niv;
-	var jv={x:-iv.y,y:iv.x};
-	var ap=paper.view.viewToProject(new paper.Point(lp1.x-jv.x+iv.x,lp1.y-jv.y+iv.y));
-	path.add(ap);
-	*/
 	
 	for(i=0;i<segmentCount;i++) {
 		var tmp,point1,point2,point3;
@@ -292,10 +310,19 @@ function backToPreviousTool(prevTool) {
 function changeTool(tool) {
 	var prevTool=selectedTool;
 	selectedTool=tool;
-	if(tool=="move")
+	if(tool=="move") {
 		$("#overlay").css('pointer-events','none');
-	else
+	}
+	else {
 		$("#overlay").css('pointer-events','all');
+		if(tool=="draw"||tool=="select") {
+			// arrow: remove previous arrows
+			if(arrows.length) {
+				for(i in arrows)
+					arrows[i].remove();
+			}
+		}
+	}
 	$("#tools button").removeClass('selected');
 	$("#"+tool).addClass('selected');
 
@@ -469,17 +496,19 @@ function initRender() {
 	renderer = new THREE.WebGLRenderer({canvas:$("#three")[0]});
 	var h=window.innerHeight;
 	var w=h;
+	/*TEST*/var w=window.innerWidth;
 	renderer.setSize(w,h);
 	renderer.setClearColor('white');
 	document.body.appendChild(renderer.domElement);
 	scene = new THREE.Scene();
-	camera = new THREE.OrthographicCamera( w/-2,w/2,h/2,h/-2,1,1000);
-	camera.position.z = 4;
+	camera = new THREE.OrthographicCamera( -w/2,w/2,h/2,-h/2,1,1000);
+	aspectRatio = w/h;
+	/*TEST*/uniforms.aspectRatio.value=aspectRatio;
+	camera.position.z = 10;
 	scene.add(camera);
 	trackball = new THREE.TrackballControls(camera,renderer.domElement);
 	trackball.dynamicDampingFactor=1.0;
 	trackball.addEventListener( 'change', function(){
-		console.log("tb");
 		convertReferencePathsToScreen();
 		paper.view.draw();
 	});
@@ -492,9 +521,13 @@ function configureMaterial() {
 	//material=new THREE.ShaderMaterial({vertexShader: "varying vec3 vnormal;void main(){vnormal=normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}", fragmentShader: "varying vec3 vnormal;void main(){vec3 n=normalize(vec3(1,1,1)+vnormal);gl_FragColor=vec4(n,1);}",shading:THREE.SmoothShading});
 	
 	// universal stereographic projection with vertex shader
+	uniforms={zoom:{type:'f',value:zoom},aspectRatio:{type:'f',value:aspectRatio}};
 	material = new THREE.ShaderMaterial({
 		wireframe:false,
+		uniforms: uniforms,
 		vertexShader: [
+			"uniform float zoom;",
+			"uniform float aspectRatio;",
 			"varying vec3 vnormal;",
 			"varying vec3 vcolor;",
 			"void main(){",
@@ -503,9 +536,10 @@ function configureMaterial() {
 				"vec4 p=viewMatrix*vec4(position,0.0);",
 				"float invPI=0.3183098861837907;",
 				"float a=atan(p.y,p.x);",
-				"float b=acos(p.z/length(p))*invPI;",
+				"float b=zoom*acos(p.z/length(p))*invPI;",
 				"gl_Position=vec4(b*cos(a),b*sin(a),length(p)*0.1,1);",
-				"if(b>0.9) vnormal=vec3(0,0,0);",
+				"gl_Position.x=gl_Position.x/aspectRatio;",
+				//"if(b>0.9) vnormal=vec3(0,0,0);",
 			"}"
 		].join(" "),
 		fragmentShader: [
@@ -534,10 +568,11 @@ function initAnnotationOverlay() {
 	// set up vectorial annotation overlay
 	var height=window.innerHeight;
 	var width=height;
+	/*TEST*/var width=window.innerWidth;
 	$("#overlay").attr('width',width);
 	$("#overlay").attr('height',height);
 	
-	$("svg").width(height);
+	$("svg").width(width);
 	$("svg").height(height);
 
 	var	canvas=$("#overlay")[0];
@@ -627,21 +662,58 @@ function exportLines() {
 	document.body.appendChild(a);
 	a.click();
 }
+function importLines() {
+	var input=document.createElement("input");
+	input.type="file";
+	input.onchange=function(e){
+		var file=this.files[0];
+
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			var i,j;
+			var str=e.target.result.split("\n");
+			// remove old paths
+			for(i=0;i<Regions.length;i++)
+				Regions[i].path.remove();
+			// configure new paths
+			var nlines=parseInt(str[0]);
+			for(i=0;i<nlines;i++) {
+				var name=str[1+3*i];
+				console.log(name);
+				var points=str[1+3*i+2].split(" ");
+				var path=new paper.Path();
+				path.strokeWidth=1;
+				path.strokeColor='black';
+				for(j=0;j<points.length;j++) {
+					var x=points[j].split(",");
+					path.add(new paper.Point(500+100*parseFloat(x[0]),500+100*parseFloat(x[1])));
+				}
+			}
+		};
+		reader.readAsText(file);
+
+	}
+	input.click();
+}
 
 /*
 	Transformations
 */
 function screen2stereographic(px,py) {
 	var h=window.innerHeight;
+	var w=h;
+	/*TEST*/var w=window.innerWidth;
 	var a,b,x,y;
-	x=(px-h/2)/(h/2)*Math.PI;
-	y=(h/2-py)/(h/2)*Math.PI;
+	x=(px-w/2)/(h/2)/zoom*Math.PI;
+	y=(h/2-py)/(h/2)/zoom*Math.PI;
 	return {x:x,y:y};
 }
 function stereographic2screen(x,y) {
 	var h=window.innerHeight;
-	var x=h/2+x*(h/2)/Math.PI;
-	var y=h/2-y*(h/2)/Math.PI;
+	var w=h;
+	/*TEST*/var w=window.innerWidth;
+	var x=w/2+zoom*x*(h/2)/Math.PI;
+	var y=h/2-zoom*y*(h/2)/Math.PI;
 	return {x:x,y:y};
 }
 function stereographic2sphere(x,y) {
@@ -722,6 +794,7 @@ function init() {
 	$("#open-path").click(chooseAnnotation);
 	$("#save").click(savePaths);
 	$("#export").click(exportLines);
+	$("#import").click(importLines);
 	$("#draw").click(function(){changeTool("draw")});
 	$("#move").click(function(){changeTool("move")});
 	$("#select").click(function(){changeTool("select")});
@@ -731,6 +804,50 @@ function init() {
 	$("#rename").click(function(){changeTool("rename")});
 	
 	changeTool("move");
+
+	renderer.domElement.addEventListener('DOMMouseScroll', mousewheel, false);
+	renderer.domElement.addEventListener('mousewheel', mousewheel, false);
+	
+	window.addEventListener('resize',resize, true);
 }
 init();
 animate();
+
+function resize(e) {
+	var h=window.innerHeight;
+	var w=h;
+	var w=window.innerWidth;
+
+	$("#overlay").attr('width',w);
+	$("#overlay").attr('height',h);
+	
+	paper.view.setViewSize(w,h);
+	convertReferencePathsToScreen();
+	paper.view.draw();
+
+	$("svg").width(w);
+	$("svg").height(h);
+
+	aspectRatio = w/h;
+	uniforms.aspectRatio.value=aspectRatio;
+	renderer.setSize( w,h );
+/*
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+*/
+}
+function mousewheel(e) {
+	var val;
+	if(e.wheelDelta){//IE/Opera/Chrome 
+        val=-e.wheelDelta;
+    }else if(e.detail){//Firefox
+        val=e.detail;
+    }
+
+	zoom=uniforms.zoom.value;
+	zoom*=1-val/100.0;
+	if(zoom<1)
+		zoom=1;
+	uniforms.zoom.value=zoom;
+	render();
+}
