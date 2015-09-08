@@ -48,7 +48,7 @@ typedef struct
 #define MIN(x,y) (((x)<(y))?(x):(y))
 #define MAX(x,y) (((x)>(y))?(x):(y))
 
-int verbose=0;
+int verbose=1;
 
 float dot3D(float3D a, float3D b)
 {
@@ -165,7 +165,7 @@ int Ply_save_mesh(char *path, Mesh *m)
 
 void stereographic2sphere(float2D x0, float3D *x1)
 {
-	if(verbose>1) printf("_________________________________________stereographic2sphere\n");
+	if(verbose>1) printf("[stereographic2sphere]\n");
 	float b,z,f;
 	b=sqrt(x0.x*x0.x+x0.y*x0.y);	if(verbose>1) printf("b: %g\n",b);
 	if(b==0)
@@ -190,9 +190,9 @@ void sphere2stereographic(float3D x0,float2D *x1)
 	x1->x=b*cos(a);
 	x1->y=b*sin(a);
 }
-int transform(LineSet *l, Weights *w, float3D *x)
+int transform(LineSet *l, Weights *w, float3D *x,int maxnl)
 {
-	if(verbose) printf("___________________________________________________transform\n");
+	if(verbose>1) printf("[transform]\n");
 	int i,j,k;
 	float3D	p,q,r,q1;
 	float3D tmp,x0;
@@ -203,20 +203,20 @@ int transform(LineSet *l, Weights *w, float3D *x)
 	tmp=(float3D){0,0,0};
 	sumw=0;
 	k=0;
-	for(i=0;i<l->nlines;i++)
+	for(i=0;i<maxnl/*l->nlines*/;i++)
 	for(j=0;j<l->l[i].npoints-1;j++)
 	{
-		stereographic2sphere(l->l[i].p[j],&p);							if(verbose) printf("p: %g,%g,%g\n",p.x,p.y,p.z);
-		stereographic2sphere(l->l[i].p[j+1],&q);						if(verbose) printf("q: %g,%g,%g\n",q.x,q.y,q.z);
+		stereographic2sphere(l->l[i].p[j],&p);							if(verbose>1) printf("p: %g,%g,%g\n",p.x,p.y,p.z);
+		stereographic2sphere(l->l[i].p[j+1],&q);						if(verbose>1) printf("q: %g,%g,%g\n",q.x,q.y,q.z);
 		r=cross3D(p,q);
-		r=sca3D(r,1/norm3D(r));											if(verbose) printf("r: %g,%g,%g\n",r.x,r.y,r.z);
-		q1=cross3D(r,p);												if(verbose) printf("q1: %g,%g,%g\n",q1.x,q1.y,q1.z);
+		r=sca3D(r,1/norm3D(r));											if(verbose>1) printf("r: %g,%g,%g\n",r.x,r.y,r.z);
+		q1=cross3D(r,p);												if(verbose>1) printf("q1: %g,%g,%g\n",q1.x,q1.y,q1.z);
 		a=w->c[k].x;
-		length=acos(dot3D(p,q));										if(verbose) printf("length: %g\n",length);
-		b=length*w->c[k].y;												if(verbose) printf("a,b: %g,%g\n",a,b);
-		xy=(float2D){b*cos(a),b*sin(a)};								if(verbose) printf("xy: %g,%g\n",xy.x,xy.y);
-		stereographic2sphere(xy,&x0);									if(verbose) printf("x0: %g,%g,%g\n",tmp.x,tmp.y,tmp.z);
-		x0=add3D(add3D(sca3D(q1,x0.x),sca3D(r,x0.y)),sca3D(p,x0.z));	if(verbose) printf("x0': %g,%g,%g\n",x0.x,x0.y,x0.z);
+		length=acos(dot3D(p,q));										if(verbose>1) printf("length: %g\n",length);
+		b=length*w->c[k].y;												if(verbose>1) printf("a,b: %g,%g\n",a,b);
+		xy=(float2D){b*cos(a),b*sin(a)};								if(verbose>1) printf("xy: %g,%g\n",xy.x,xy.y);
+		stereographic2sphere(xy,&x0);									if(verbose>1) printf("x0: %g,%g,%g\n",tmp.x,tmp.y,tmp.z);
+		x0=add3D(add3D(sca3D(q1,x0.x),sca3D(r,x0.y)),sca3D(p,x0.z));	if(verbose>1) printf("x0': %g,%g,%g\n",x0.x,x0.y,x0.z);
 		tmp=add3D(tmp,sca3D(x0,w->w[k]));
 		sumw+=w->w[k];
 		k++;
@@ -224,13 +224,13 @@ int transform(LineSet *l, Weights *w, float3D *x)
 	tmp=sca3D(tmp,1/sumw);
 	*x=sca3D(tmp,1/norm3D(tmp));
 
-	if(verbose) printf("Total number of weights applied: %i\n",k);
+	if(verbose>1) printf("Total number of weights applied: %i\n",k);
 
 	return 0;
 }
-int weights(LineSet *l, float3D x, Weights *w)
+int weights(LineSet *l, float3D x, Weights *w, int maxnl)
 {
-	if(verbose) printf("______________________________________________________weights\n");
+	if(verbose>1) printf("[weights]\n");
 	int i,j,k;
 	float	length;
 	float	a,b,c;
@@ -243,28 +243,30 @@ int weights(LineSet *l, float3D x, Weights *w)
 	c=2;		// a value that determines how quickly the influence of a line decreases with distance
 	
 	k=0;
-	for(i=0;i<l->nlines;i++)
+	for(i=0;i<maxnl/*l->nlines*/;i++)
 	for(j=0;j<l->l[i].npoints-1;j++)
 	{
-		stereographic2sphere(l->l[i].p[j],&p);			if(verbose) printf("p: %g,%g,%g\n",p.x,p.y,p.z);
-		stereographic2sphere(l->l[i].p[j+1],&q);		if(verbose) printf("q: %g,%g,%g\n",q.x,q.y,q.z);
+		stereographic2sphere(l->l[i].p[j],&p);			if(verbose>1) printf("p: %g,%g,%g\n",p.x,p.y,p.z);
+		stereographic2sphere(l->l[i].p[j+1],&q);		if(verbose>1) printf("q: %g,%g,%g\n",q.x,q.y,q.z);
 		r=cross3D(p,q);
-		r=sca3D(r,1/norm3D(r));							if(verbose) printf("r: %g,%g,%g\n",r.x,r.y,r.z);
-		q1=cross3D(r,p);								if(verbose) printf("q1: %g,%g,%g\n",q1.x,q1.y,q1.z);
+		r=sca3D(r,1/norm3D(r));							if(verbose>1) printf("r: %g,%g,%g\n",r.x,r.y,r.z);
+		q1=cross3D(r,p);								if(verbose>1) printf("q1: %g,%g,%g\n",q1.x,q1.y,q1.z);
 		// coordinates
 		w->c[k].x=atan2(dot3D(x,r),dot3D(x,q1));
-		w->c[k].y=acos(dot3D(x,p))/acos(dot3D(p,q));	if(verbose) printf("c: %g,%g\n",w->c[i].x,w->c[i].y);
+		w->c[k].y=acos(dot3D(x,p))/acos(dot3D(p,q));	if(verbose>1) printf("c: %g,%g\n",w->c[i].x,w->c[i].y);
 		// weight
-		length=acos(dot3D(p,q));						if(verbose) printf("length: %g\n",length);
+		length=acos(dot3D(p,q));						if(verbose>1) printf("length: %g\n",length);
 		fa=pow(length,a);
 		// transformed coordinate
 		t=acos(dot3D(p,x))/(acos(dot3D(p,x))+acos(dot3D(q,x)));
 		tmp=add3D(sca3D(p,1-t),sca3D(q,t));
 		fb=b+10*MIN(MIN(acos(dot3D(p,x)),acos(dot3D(q,x))),acos(dot3D(tmp,x)));
-		w->w[k]=pow(fa/fb,c);							if(verbose) printf("w: %g\n",w->w[i]);
+		w->w[k]=pow(fa/fb,c);							if(verbose>1) printf("w: %g\n",w->w[i]);
+//		printf("sx:%g sy:%g tx:%g ty:%g px:%g py:%g pz:%g qx:%g qy:%g qz:%g x:%g y:%g fa:%g t:%g fb:%g w:%g;",l->l[i].p[j].x,l->l[i].p[j].y,l->l[i].p[j+1].x,l->l[i].p[j+1].y,p.x,p.y,p.z,q.x,q.y,q.z,w->c[k].x,w->c[k].y,fa,t,fb,w->w[k]);
 		k++;
 	}
-	if(verbose) printf("Total number of weights computed: %i\n",k);
+//	printf("\n");
+	if(verbose>1) printf("Total number of weights computed: %i\n",k);
 	
 	return 0;
 }
@@ -285,7 +287,7 @@ int printLineSet(LineSet *l)
 }
 int loadLineSet(char *path, LineSet *l)
 {
-	if(verbose) printf("__________________________________________________loadLineSet\n");
+	if(verbose) printf("[loadLineSet]\n");
 	/*
 		LineSet file format:
 		int 							// number of lines
@@ -335,7 +337,7 @@ int loadLineSet(char *path, LineSet *l)
 }
 int findLineWithName(LineSet *l, char *name)
 {
-	if(verbose) printf("_____________________________________________findLineWithName\n");
+	if(verbose>1) printf("[findLineWithName]\n");
 	int	j;
 	int found=0;
 	int	result;
@@ -351,33 +353,43 @@ int findLineWithName(LineSet *l, char *name)
 		result=-1;
 	return result;
 }
-int checkLinePairing(LineSet *l1, LineSet *l2)
+int pairLines(LineSet *l1, LineSet *l2)
 {
-	if(verbose) printf("_____________________________________________checkLinePairing\n");
+	if(verbose) printf("[pairLines]\n");
 	int	i,j;
-	int	result=1;
+	int	found,keep=0;
 	Line swap;
 	
 	for(i=0;i<l1->nlines;i++)
 	{
-		j=findLineWithName(l2,l1->l[i].name);
-		if(j<0)
+		found=0;
+		do
 		{
-			printf("Line %i, '%s', in set 1 is not in line set 2\n",i,l1->l[i].name);
-			result=0;
+			j=findLineWithName(l2,l1->l[i].name);
+			if(j<0)
+			{
+				printf("Dropping line %i, '%s', which is in line set 1 but not in line set 2\n",i,l1->l[i].name);
+				l1->l[i]=l1->l[l1->nlines-1];
+				l1->nlines--;
+			}
+			else
+				found=1;
 		}
-		else
+		while(!found && i<l1->nlines);
+		
+		if(found && i<l1->nlines)
 		{
 			swap=l2->l[i];
 			l2->l[i]=l2->l[j];
 			l2->l[j]=swap;
+			keep++;
 		}
 	}
-	return result;
+	return keep;
 }
 int resampleLine(Line *l, int nseg)
 {
-	if(verbose) printf("_________________________________________________resampleLine\n");
+	if(verbose>1) printf("[resampleLine]\n");
 	/*
 		Resample the line into nseg equal-length segments
 	*/
@@ -387,6 +399,8 @@ int resampleLine(Line *l, int nseg)
 	int i,j;
 	float3D p1,p2,px;
 	float2D *spx;
+	
+	//printf("nsegments: %i, npoints: %i\n",nseg,l->npoints);
 	
 	// allocate memory for resampled points
 	spx=(float2D*)calloc(nseg+1,sizeof(float2D));
@@ -401,6 +415,7 @@ int resampleLine(Line *l, int nseg)
 		tlength+=norm3D(sub3D(p1,p2));
 	}
 	slength=tlength/(float)nseg;
+	//printf("total length: %g\nsegment length: %g\n",tlength,slength);
 	
 	// resample the line
 	for(i=0;i<nseg+1;i++)
@@ -412,12 +427,16 @@ int resampleLine(Line *l, int nseg)
 			stereographic2sphere(l->p[j],&p1);
 			stereographic2sphere(l->p[j+1],&p2);
 			d=norm3D(sub3D(p1,p2));
-			if(t<=s && t+d>=s) // point is bracketed
+			//printf("t:%g, s:%g, t+d:%g\n",t,s,t+d);
+			if(t<=s && t+d>=s-1e-6) // point is bracketed
 			{
 				g=(s-t)/d;
 				px=add3D(sca3D(p1,1-g),sca3D(p2,g));
 				px=sca3D(px,1/norm3D(px));
 				sphere2stereographic(px,&(spx[i]));
+
+				//printf("%g,%g,%g:%g,%g  ",px.x,px.y,px.z,spx[i].x,spx[i].y);
+
 				break;
 			}
 			t+=d;
@@ -428,16 +447,21 @@ int resampleLine(Line *l, int nseg)
 	if(l->npoints<nseg+1) {
 		printf("EEEEERRRRROOOOORRRRR!!!! %i %i\n",l->npoints,nseg+1);
 	}
+	//printf("\n-----------------------------------------\n");
 	l->npoints=nseg+1;
 	for(i=0;i<nseg+1;i++)
+	{
 		l->p[i]=spx[i];
+		//printf("%g,%g ",spx[i].x,spx[i].y);
+	}
+	//printf("\n");
 	free(spx);
 	
 	return 0;
 }
 int resample(LineSet *l1, LineSet *l2, float d)
 {
-	if(verbose) printf("_____________________________________________________resample\n");
+	if(verbose) printf("[resample]\n");
 	/*
 		Resample the lines into segments of length d
 		1. for each pair of lines the number of segments has to be equal, so use the
@@ -467,7 +491,7 @@ int resample(LineSet *l1, LineSet *l2, float d)
 		}
 		nseg=MAX(1,MIN((int)(length1/d+0.5),(int)(length2/d+0.5)));
 		nseg=MIN(nseg,MIN(l1->l[i].npoints-1,l2->l[k].npoints-1));
-		if(verbose) printf("line %s, number of segments:%i\n",l1->l[i].name,nseg);
+		if(verbose) printf("line %s, %i segments\n",l1->l[i].name,nseg);
 		
 		resampleLine(&(l1->l[i]),nseg);
 		resampleLine(&(l2->l[k]),nseg);
@@ -484,6 +508,9 @@ int main(int argc, char *argv[])
 	//
 	// output:
 	// argv[4] path to r=1 sphere 3d ply mesh in the space of line set 2
+	//
+	// test:
+	// argv[5] number of line pairs to use
 	
 	LineSet	l1;
 	LineSet	l2;
@@ -491,7 +518,8 @@ int main(int argc, char *argv[])
 	Weights	w;
 	float3D	x1;
 	float3D	x2;
-	int i,j,k;
+	float3D mi,ma;
+	int i,j,k,nl,maxnl;
 	Mesh m;
 	
 	// 1. Load line set 1
@@ -500,24 +528,22 @@ int main(int argc, char *argv[])
 	// 2. Load line set 2
 	loadLineSet(argv[2],&l2);
 	
-	// check number of lines
-	if(l2.nlines!=l1.nlines)
+	// check line pairing
+	nl=pairLines(&l1,&l2);
+	if(nl==0)
 	{
-		printf("ERROR: The number of lines in both sets has to be the same\n");
+		printf("ERROR: There are no lines in common between both sets\n");
 		return 1;
 	}
 	
-	// check line pairing
-	if(!checkLinePairing(&l1,&l2))
-	{
-		printf("ERROR: The lines in both sets are not the same\n");
-		return 1;
-	}
+	if(argc==6)
+		maxnl=atoi(argv[5]);
+	else
+		maxnl=nl;		
+	printf("Deformation based on %i/%i line pairs\n",maxnl,nl);
 
 	// resample the lines to have a homogeneous number of segments
 	resample(&l1,&l2,d);
-	//printLineSet(&l1);
-	//printLineSet(&l2);
 		
 	// count total number of segments that will be used for morphing
 	k=0;
@@ -529,21 +555,43 @@ int main(int argc, char *argv[])
 
 	// 3. get spherical mesh
 	Ply_load(argv[3],&m);
+	
+	// center the mesh
+	mi.x=ma.x=m.p[0].x;
+	mi.y=ma.y=m.p[0].y;
+	mi.z=ma.z=m.p[0].z;
+	for(i=0;i<m.np;i++) {
+		mi.x=(mi.x>m.p[i].x)?m.p[i].x:mi.x;
+		mi.y=(mi.y>m.p[i].y)?m.p[i].y:mi.y;
+		mi.z=(mi.z>m.p[i].z)?m.p[i].z:mi.z;
+		ma.x=(ma.x<m.p[i].x)?m.p[i].x:ma.x;
+		ma.y=(ma.y<m.p[i].y)?m.p[i].y:ma.y;
+		ma.z=(ma.z<m.p[i].z)?m.p[i].z:ma.z;
+	}
+	for(i=0;i<m.np;i++) {
+		m.p[i].x-=(mi.x+ma.x)/2;
+		m.p[i].y-=(mi.y+ma.y)/2;
+		m.p[i].z-=(mi.z+ma.z)/2;
+		
+		m.p[i]=sca3D(m.p[i],1/norm3D(m.p[i]));
+	}
+	
 	for(j=0;j<m.np;j++)
 	{
 		x1=m.p[j];
-		x1=sca3D(x1,1/norm3D(x1));
 	
 		// 4. compute weights for x1 relative to set 1
-		weights(&l1,x1,&w);
+		//printf("%i. ",j);
+		weights(&l1,x1,&w,maxnl);
 	
 		// 5. compute x2=f(x1), applying the previous weights to line set 2
-		transform(&l2,&w,&x2);
+		transform(&l2,&w,&x2,maxnl);
 		
 		m.p[j]=x2;
 	}
 	
 	// 6. save result
+	printf("Saving to %s\n",argv[4]);
 	Ply_save_mesh(argv[4],&m);
 
 	// 7. clean up

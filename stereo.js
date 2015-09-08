@@ -695,6 +695,40 @@ function importLines() {
 	}
 	input.click();
 }
+function exportLabels() {
+	var filename=prompt("Enter a name for the labels file",filename);
+	var tmpRegions=JSON.parse(JSON.stringify(Regions));
+	var content=[];
+	var i,j,k,p,q,arr=[],lab=[],thr=0.1,dist;
+	content.push(Regions.length);
+	for(k=0;k<geometry.vertices.length;k++)
+		lab[k]=0;
+	for(i=0;i<Regions.length;i++) {
+		var path=new paper.Path();
+		arr.push(path);
+		path.importJSON(Regions[i].path.exportJSON());
+		path.flatten(5);
+		for(j=0;j<path.segments.length;j++) {
+			q=inverse(path.segments[j].point.x,path.segments[j].point.y);
+			p=stereographic2sphere(q.x,q.y);
+			for(k=0;k<geometry.vertices.length;k++) {
+				v=geometry.vertices[k];
+				dist=Math.sqrt(Math.pow(p.x-v.x,2)+Math.pow(p.y-v.y,2)+Math.pow(p.z-v.z,2));
+				if(dist<thr)
+					lab[k]+=1;
+			}
+		}
+	}
+	for(i in arr)
+		arr[i].remove();
+	var txt=""+geometry.vertices.length+"\n"+lab.join("\n");
+	var txtData = 'data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
+	var a = document.createElement('a');
+	a.href = txtData;
+	a.download = filename+'.txt';
+	document.body.appendChild(a);
+	a.click();
+}
 
 /*
 	Transformations
@@ -795,6 +829,7 @@ function init() {
 	$("#save").click(savePaths);
 	$("#export").click(exportLines);
 	$("#import").click(importLines);
+	$("#labels").click(exportLabels);
 	$("#draw").click(function(){changeTool("draw")});
 	$("#move").click(function(){changeTool("move")});
 	$("#select").click(function(){changeTool("select")});
