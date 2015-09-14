@@ -32,6 +32,7 @@ html,body {
 button {
 	background-color:white;
 	width:90%;
+	outline:none;
 }
 .selected {
 	background-color:lightGrey;
@@ -39,6 +40,9 @@ button {
 .space8 {
 	width:100%;
 	height:8px;
+}
+input {
+	display:none;
 }
 </style>
 <body>
@@ -58,15 +62,23 @@ button {
 </svg>
 -->
 
+<input type="file" id="i-open-mesh" />
+<input type="file" id="i-open-sulcal-map" />
+<input type="file" id="i-open-annotation" />
+<input type="file" id="i-open-native-mesh" />
+
 <div id="toolbar">
-	<button id="open-mesh">Open Mesh</button>
-	<button id="open-sulc" disabled>Open Sulcal Map</button>
-	<button id="open-path">Open Annotation</button>
+	<button id="open-mesh">Open Spherical Mesh</button>
+	<button id="open-sulcal-map" disabled>Open Sulcal Map</button>
+	<button id="open-annotation">Open Annotation</button>
 	<button id="save">Save Annotation</button>
 	<button id="export">Export Lines</button>
 	<button id="import">Import Lines</button>
 	<button id="labels">Export Labels</button>
+	<button id="open-native-mesh">Open Native Mesh</button>
+    
 	<div class="space8"></div>
+    
 	<div id="tools">
 		<button id="move">Move</button>
 		<button id="draw">Draw</button>
@@ -75,6 +87,20 @@ button {
 		<button id="delpoint">-</button>
 		<button id="delete">Delete</button>
 		<button id="rename">Rename</button>
+	</div>
+    
+	<div class="space8"></div>
+    
+	<div id="projection">
+		<button id="stereographic">Stereographic</button>
+		<button id="orthographic">Orthographic</button>
+	</div>
+
+    <div class="space8"></div>
+
+    <div id="renderStyle">
+		<button id="solid">Solid</button>
+		<button id="wireframe">Wireframe</button>
 	</div>
 </div>
 <div id="info">
