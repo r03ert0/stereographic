@@ -21,3 +21,9 @@ work even if you decide later on to increase the density of vertices in your mes
 you see and interact with the vectorial landmarks in 2D, they are encoded internally in 3D
 and projected to the flat surface. Thanks to that, if you displace the centre of your flat map,
 the landmarks will transform to register with the new map.
+
+<img width="1428" alt="screenshot1" src="https://user-images.githubusercontent.com/2310732/34650646-c1a1d0f2-f3c4-11e7-91bc-08d3649d59a1.png">
+
+<img width="1428" alt="screenshot2" src="https://user-images.githubusercontent.com/2310732/34650648-c93c5530-f3c4-11e7-9332-88200a4381e9.png">
+
+<img width="1428" alt="screenshot3" src="https://user-images.githubusercontent.com/2310732/34650649-ce7dbaac-f3c4-11e7-96a9-cfd864b17113.png">
