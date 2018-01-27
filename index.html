@@ -8,57 +8,57 @@
 <script src="lib/jquery-1.8.2.min.js"></script>
 <style>
 html,body {
-	margin:0;
+    margin:0;
 }
 #overlay {
-	position:absolute;
-	top:0px;
-	left:0px;
-	z-index:10;
+    position:absolute;
+    top:0px;
+    left:0px;
+    z-index:10;
 }
 #toolbar {
-	position:absolute;
-	width:100px;
-	top:0px;
-	left:0px;
-	z-index:20;
+    position:absolute;
+    width:100px;
+    top:0px;
+    left:0px;
+    z-index:20;
 }
 #info {
-	position:absolute;
-	top:0px;
-	right:0px;
-	z-index:20;
+    position:absolute;
+    top:0px;
+    right:0px;
+    z-index:20;
 }
 button {
-	background-color:white;
-	width:90%;
-	outline:none;
+    background-color:white;
+    width:90%;
+    outline:none;
 }
 .selected {
-	background-color:lightGrey;
+    background-color:lightGrey;
 }
 .space8 {
-	width:100%;
-	height:8px;
+    width:100%;
+    height:8px;
 }
 input {
-	display:none;
+    display:none;
 }
 </style>
 <body>
 
 <!--
 <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;top:0;left:0;z-index:15;pointer-events:none">
-	<defs>
-		<mask id="clipPath">
-		  	<rect x=0 y=0 width="100%" height="100%" fill="white"/>
-			<circle cx="50" cy="50" r="45" fill="black"/>
-		</mask>
-	</defs>
-  	<rect x=0 y=0 width="100" height="100" fill="white" mask="url(#clipPath)" />
-	<circle cx="50" cy="50" r="45" fill="none" stroke-width="0.1px" stroke="rgba(1,1,1,0.1)"/>
-	<circle cx="50" cy="50" r="25" fill="none" stroke-width="0.1px" stroke="rgba(1,1,1,0.1)"/>
-	<path d="M50 5L50 95 M5 50L95 50" stroke-width="0.1px" stroke="rgba(1,1,1,0.1)" />
+    <defs>
+        <mask id="clipPath">
+            <rect x=0 y=0 width="100%" height="100%" fill="white"/>
+            <circle cx="50" cy="50" r="45" fill="black"/>
+        </mask>
+    </defs>
+    <rect x=0 y=0 width="100" height="100" fill="white" mask="url(#clipPath)" />
+    <circle cx="50" cy="50" r="45" fill="none" stroke-width="0.1px" stroke="rgba(1,1,1,0.1)"/>
+    <circle cx="50" cy="50" r="25" fill="none" stroke-width="0.1px" stroke="rgba(1,1,1,0.1)"/>
+    <path d="M50 5L50 95 M5 50L95 50" stroke-width="0.1px" stroke="rgba(1,1,1,0.1)" />
 </svg>
 -->
 
@@ -68,43 +68,47 @@ input {
 <input type="file" id="i-open-native-mesh" />
 
 <div id="toolbar">
-	<button id="open-mesh">Open Spherical Mesh</button>
-	<button id="open-sulcal-map" disabled>Open Sulcal Map</button>
-	<button id="open-annotation">Open Annotation</button>
-	<button id="save">Save Annotation</button>
-	<button id="export">Export Lines</button>
-	<button id="import">Import Lines</button>
-	<button id="labels">Export Labels</button>
-	<button id="open-native-mesh">Open Native Mesh</button>
-    
-	<div class="space8"></div>
-    
-	<div id="tools">
-		<button id="move">Move</button>
-		<button id="draw">Draw</button>
-		<button id="select">Select</button>
-		<button id="addpoint">+</button>
-		<button id="delpoint">-</button>
-		<button id="delete">Delete</button>
-		<button id="rename">Rename</button>
-	</div>
-    
-	<div class="space8"></div>
-    
-	<div id="projection">
-		<button id="stereographic">Stereographic</button>
-		<button id="orthographic">Orthographic</button>
-	</div>
+    <button id="open-mesh">Open Spherical Mesh</button>
+    <button id="open-sulcal-map" disabled>Open Sulcal Map</button>
+    <button id="open-native-mesh">Open Native Mesh</button>
+    <button id="open-annotation">Open Annotation</button>
+    <button id="import">Import Lines</button>
+    <button id="save">Save Annotation</button>
+    <button id="export">Export Lines</button>
+    <button id="labels">Export Labels</button>
+
+    <div class="space8"></div>
+
+    <div id="tools">
+        <button id="move">Move</button>
+        <button id="draw">Draw</button>
+        <button id="select">Select</button>
+        <button id="addpoint">+</button>
+        <button id="delpoint">-</button>
+        <button id="delete">Delete</button>
+        <button id="rename">Rename</button>
+    </div>
+
+    <div class="space8"></div>
+
+    <div id="projection">
+        <button id="stereographic">Stereographic</button>
+        <button id="orthographic">Orthographic</button>
+    </div>
 
     <div class="space8"></div>
 
     <div id="renderStyle">
-		<button id="solid">Solid</button>
-		<button id="wireframe">Wireframe</button>
-	</div>
+        <button id="solid">Solid</button>
+        <button id="wireframe">Wireframe</button>
+    </div>
+
+    <div class="space8"></div>
+
+    <button id="smoothMesh">Smooth Mesh</button>
 </div>
 <div id="info">
-	<div id="log"></div>
+    <div id="log"></div>
 </div>
 
 <canvas id="overlay"></canvas>

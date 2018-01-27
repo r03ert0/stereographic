@@ -1,0 +1,16 @@
+ply
+format ascii 1.0
+comment meshconvert, R. Toro 2010
+element vertex 4
+property float x
+property float y
+property float z
+element face 2
+property list uchar int vertex_indices
+end_header
+27.633770 12.526350 22.955387
+28.235802 12.589767 22.513519
+20.049643 23.875614 23.239799
+20.598557 23.897095 23.124758
+3 0 1 2
+3 0 1 3

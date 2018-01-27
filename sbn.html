@@ -1,0 +1,539 @@
+<html>
+<title>Spherical Beier and Neely Morphing</title>
+<script src="lib/paper-full.min.js"></script>
+<script src="lib/three.min.js"></script>
+<script src="lib/PLYLoader.js"></script>
+<script src="lib/TrackballControls.js"></script>
+<script src="lib/pako.min.js"></script>
+<script src="lib/jquery-1.8.2.min.js"></script>
+
+<body>
+<style>
+#controls {
+    padding:10px;
+}
+#three {
+    width: 100%;
+    height: 200px;
+}
+.brain {
+    display: inline-block;
+    padding: 10px;
+    margin: 10px;
+    background: #ddd;
+}
+</style>
+
+<div id='container' style='display: flex; flex-direction: column;height: 100%'>
+    <div id='info' style='flex:0 1 auto'>
+    </div>
+
+    <div id='controls' style='flex:0 1 auto'>
+        <button onclick='pipeline="morph";state=0;doPipeline()'>Morph</button>
+        <button onclick='pipeline="refresh";state=0;doPipeline()'>Refresh</button>
+        <input type='range' max=100 oninput='intermediate(this.value/100)' style='width:300px'>
+    </div>
+
+    <div id ='three' style='flex:1'>
+    </div>
+</div>
+
+<script src="linalg.js"></script>
+
+<script src="sbn.js"></script>
+
+<script src="intersect_vector_triangle.js"></script>
+<script src="minimum_bounding_circle.js"></script>
+<script src="point_in_sphere.js"></script>
+<script src="resample.js"></script>
+
+<script>
+var brains = [];
+var state = 0;
+
+var renderer, scene, camera, trackball;
+var mesh, geometry, material;
+var selectedProjection = 'orthographic';//'stereographic';
+var selectedRenderStyle = 'solid';//'wireframe';
+var defaultCameraPosition = 30;
+var zoom = 1;
+var aspectRatio = 1;
+var uniforms = {zoom: {type: 'f', value: zoom}, aspectRatio: {type: 'f', value: aspectRatio}};
+var pipeline = 'morph';
+
+$(window).on('storage', messageReceived);
+localStorage.clear();
+localStorage.setItem('message', JSON.stringify({
+    timestamp: new Date(),
+    message: 'callback',
+    to: 'all'
+}));
+
+initRender();
+displayMesh(
+[[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[-0.5877852522924731,0.8090169943749475,0],[-0.18163563200134025,0.8090169943749475,0.5590169943749475],[0.47552825814757677,0.8090169943749475,0.3454915028125264],[0.4755282581475768,0.8090169943749475,-0.3454915028125262],[-0.1816356320013401,0.8090169943749475,-0.5590169943749475],[-0.5877852522924731,0.8090169943749475,-1.4396586556119933e-16],[-0.9510565162951535,0.30901699437494745,0],[-0.29389262614623657,0.30901699437494745,0.9045084971874736],[0.7694208842938133,0.30901699437494745,0.5590169943749476],[0.7694208842938134,0.30901699437494745,-0.5590169943749473],[-0.29389262614623635,0.30901699437494745,-0.9045084971874737],[-0.9510565162951535,0.30901699437494745,-2.3294166369781847e-16],[-0.9510565162951536,-0.30901699437494734,0],[-0.2938926261462366,-0.30901699437494734,0.9045084971874737],[0.7694208842938133,-0.30901699437494734,0.5590169943749476],[0.7694208842938134,-0.30901699437494734,-0.5590169943749473],[-0.2938926261462364,-0.30901699437494734,-0.9045084971874738],[-0.9510565162951536,-0.30901699437494734,-2.329416636978185e-16],[-0.5877852522924732,-0.8090169943749473,0],[-0.18163563200134028,-0.8090169943749473,0.5590169943749476],[0.4755282581475768,-0.8090169943749473,0.34549150281252644],[0.4755282581475769,-0.8090169943749473,-0.3454915028125263],[-0.18163563200134014,-0.8090169943749473,-0.5590169943749476],[-0.5877852522924732,-0.8090169943749473,-1.4396586556119935e-16],[-1.2246467991473532e-16,-1,0],[-3.7843667304341506e-17,-1,1.1647083184890923e-16],[9.907600726170915e-17,-1,7.198293278059968e-17],[9.907600726170916e-17,-1,-7.198293278059965e-17],[-3.7843667304341475e-17,-1,-1.1647083184890926e-16],[-1.2246467991473532e-16,-1,-2.999519565323715e-32]],
+[[1,6,7],[2,7,8],[3,8,9],[4,9,10],[5,10,11],[7,6,13],[6,12,13],[8,7,14],[7,13,14],[9,8,15],[8,14,15],[10,9,16],[9,15,16],[11,10,17],[10,16,17],[13,12,19],[12,18,19],[14,13,20],[13,19,20],[15,14,21],[14,20,21],[16,15,22],[15,21,22],[17,16,23],[16,22,23],[19,18,25],[18,24,25],[20,19,26],[19,25,26],[21,20,27],[20,26,27],[22,21,28],[21,27,28],[23,22,29],[22,28,29],[25,24,30],[26,25,31],[27,26,32],[28,27,33],[29,28,34]]
+);
+/*
+displayMesh(
+[[0,1,0],[0,1,0],[0,1,0]],
+[[0,1,2]]
+);
+*/
+
+function displayInfo() {
+    let html = '';
+    const uids = Object.keys(brains);
+    let i;
+    for(i=0;i<uids.length;i++) {
+        let o = brains[uids[i]];
+        html += [
+            '<div class="brain">',
+            `<b>Brain ${i+1}</b> (${o.UID})<br />`,
+            `<b>Native:</b> ${o.native}<br />`,
+            `<b>Sphere:</b> ${o.sphere}<br />`,
+            `<b>Map:</b> ${o.map}<br />`,
+            `<b>Annotations:</b> ${o.paths}`,
+            '</div>'
+        ].join('\n');
+    }
+    $('#info').html(html);
+}
+
+function parseLineset(str) {
+    let lineset = JSON.parse(str);
+    let n = lineset.shift();
+    let l = [];
+    for(i=0;i<n;i++) {
+        l.push({
+            name: lineset[3*i+0],
+            p: lineset[3*i+2].split(' ').map((a)=>a.split(',').map((b)=>parseFloat(b)))
+        });
+    }
+    return l;
+}
+
+function parseCoordinates(str) {
+    return str.split(' ').map((a)=>a.split(',').map((b)=>parseFloat(b)));
+}
+
+function parseTriangles(str) {
+    return str.split(' ').map((a)=>a.split(',').map((b)=>parseInt(b)));
+}
+
+function messageReceived(msg) {
+    let {key, newValue} = msg.originalEvent;
+    let data = JSON.parse(newValue);
+    // console.log('storage message', key, newValue);
+    if(verbose) {
+        console.log(data);
+    }
+
+    switch(data.message) {
+        case 'introduction':
+            if(verbose) console.log('Nice to meet you', data.UID);
+            brains[data.UID] = data;
+            displayInfo();
+            break;
+        case 'lineset':
+            if(verbose) console.log('Got a line set from', data.UID);
+            brains[data.UID].lineset = parseLineset(data.lineset);
+            state += 1;
+            doPipeline();
+            break;
+        case 'coordinates':
+            if(verbose) console.log('Got spherical coordinates from', data.UID);
+            // make sure they are on a unitary sphere
+            let tmp = parseCoordinates(data.coordinates);
+            brains[data.UID].coordinates = tmp.map((o)=>direction(o));
+            state += 1;
+            doPipeline();
+            break;
+        case 'native':
+            if(verbose) console.log('Got native coordinates from', data.UID);
+            brains[data.UID].native = parseCoordinates(data.coordinates);
+            state += 1;
+            doPipeline();
+            break;
+        case 'triangles':
+            if(verbose) console.log('Got triangles from', data.UID);
+            brains[data.UID].triangles = parseTriangles(data.triangles);
+            state += 1;
+            doPipeline();
+            break;
+    }
+}
+function doPipeline() {
+    switch(pipeline) {
+        case 'morph':
+            morphPipeline();
+            break;
+        case 'refresh':
+            refreshPipeline();
+            break;
+    }
+}
+function morphPipeline() {
+    console.log(`morphPipeline ${state}`);
+    let uids = Object.keys(brains);
+
+    switch(state) {
+        case 0:
+            localStorage[uids[0]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'coordinates'
+            });
+            break;
+        case 1:
+            localStorage[uids[0]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'native'
+            });
+            break;
+        case 2:
+            localStorage[uids[0]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'triangles'
+            });
+            break;
+        case 3:
+            localStorage[uids[1]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'coordinates'
+            });
+            break;
+        case 4:
+            localStorage[uids[1]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'native'
+            });
+            break;
+        case 5:
+            localStorage[uids[1]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'triangles'
+            });
+            break;
+        case 6:
+            localStorage[uids[0]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'lineset'
+            });
+            break;
+        case 7:
+            localStorage[uids[1]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'lineset'
+            });
+            break;
+        case 8:
+            console.log('Ready to morph!');
+            state = 0;
+            morph();
+            break;
+    }
+}
+function refreshPipeline() {
+    console.log(`refreshPipeline ${state}`);
+    let uids = Object.keys(brains);
+
+    switch(state) {
+        case 0:
+            localStorage[uids[0]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'lineset'
+            });
+            break;
+        case 1:
+            localStorage[uids[1]] = JSON.stringify({
+                timestamp: new Date(),
+                message: 'lineset'
+            });
+            break;
+        case 2:
+            console.log('Ready to morph!');
+            state = 0;
+            morph();
+            break;
+    }
+}
+function printDebLineset(l1, name) {
+    let i, j;
+    console.log('lineset', name);
+    for(i=0;i<3;i++) {
+        for(j=0;j<Math.min(5, l1[i].p.length);j++) {
+            console.log(l1[i].name, l1[i].p[j].map((o)=>o.toFixed(3)).join(','));
+        }
+    }
+}
+function printDebCoords(c, name) {
+    let i;
+    console.log('coordinates', name);
+    for(i=0;i<5;i++) {
+        console.log(c[i].map((o)=>o.toFixed(3)).join(','));
+    }
+}
+function printDeb(l1, l2, sphcoords1, sphcoords1as2) {
+    let i, j;
+    printDebLineset(l1, 'l1');
+    printDebLineset(l2, 'l2');
+    printDebCoords(sphcoords1, 'sphcoords1');
+    printDebCoords(sphcoords1as2, 'sphcoords1as2');
+}
+
+function morph() {
+    let uids = Object.keys(brains);
+    let l1 = brains[uids[0]].lineset;
+    let l2 = brains[uids[1]].lineset;
+    let tr1 = brains[uids[0]].triangles; // topology 1
+    let sphcoords1 = brains[uids[0]].coordinates; // spherical geometry 1, on topology 1
+    let native1 = brains[uids[0]].native; // native geometry 1, on topology 1
+    let tr2 = brains[uids[1]].triangles; // topology 2
+    let sphcoords2 = brains[uids[1]].coordinates; // spherical geometry 2, on topology 2
+    let native2 = brains[uids[1]].native; // native geometry 2, on topology 2
+
+    var t0 = performance.now();
+    console.log('Morphing...')
+    let sphcoords1as2 = sbn(l1, l2, sphcoords1); // spherical geometry 2, on topology 1
+    var t1 = performance.now();
+    console.log('Morphing done in ' + (t1 - t0)/1000 + " seconds.")
+
+    console.log('Resampling...');
+    brains[uids[0]].morph = resampleMesh(tr2, sphcoords2, native2, sphcoords1as2); // native geometry 2, on topology 1
+    displayMesh(brains[uids[0]].morph, tr1);
+}
+
+function displayMesh(coords, tris) {
+    let i;
+
+    geometry=new THREE.Geometry();
+    for(i=0;i<coords.length;i++) {
+        geometry.vertices.push(new THREE.Vector3(coords[i][0],coords[i][1],coords[i][2]));
+    }
+    for(i=0;i<tris.length;i++) {
+        geometry.faces.push(new THREE.Face3(tris[i][0],tris[i][1],tris[i][2]));
+    }
+
+//    geometry = new THREE.SphereGeometry(1,5,5);
+    geometry.computeFaceNormals();
+    geometry.computeVertexNormals();
+    configureMaterial();
+
+    animate();
+}
+
+/**
+ * @desc Makes a mesh of the hash cells (in meshgeometry's txt format)
+ */
+function sinusoidal2sphereMesh() {
+    let a,b,i,n,ncells;
+    let max, max0, max1;
+    let p = [];
+    let t = [];
+    let h0, h1;
+    let ah;
+
+    // adapt the hash cell size
+    ah = Math.PI/Math.round(Math.PI/sphereHashCellSize);
+
+    n=0;
+    for(b=0;b<Math.round(Math.PI/ah); b++) {
+        let max0 = 2*Math.PI*Math.cos(b*ah-Math.PI/2);
+        let max = 2*Math.PI*Math.cos((b+0.5)*ah-Math.PI/2);
+        let max1 = 2*Math.PI*Math.cos((b+1)*ah-Math.PI/2);
+
+        // number of cells for the parallel band
+        ncells = Math.round(max/ah);
+
+        // lower and upper hash cell size
+        h0 = max0/ncells;
+        h1 = max1/ncells;
+        for(a = 0; a < ncells; a++) {
+            p.push(sinusoidal2sphere([a*h0,b*ah]));
+            p.push(sinusoidal2sphere([(a+1)*h0,b*ah]));
+            p.push(sinusoidal2sphere([(a+1)*h1,(b+1)*ah]));
+            p.push(sinusoidal2sphere([a*h1,(b+1)*ah]));
+            t.push([n, n+1, n+2]);
+            t.push([n, n+2, n+3]);
+            n+=4;
+        }
+    }
+    str=`${n} ${(n/2)|0}\n`;
+    for(i=0;i<p.length;i++)
+        str += `${p[i][0]} ${p[i][1]} ${p[i][2]}\n`;
+    for(i=0;i<t.length;i++)
+        str += `${t[i][0]} ${t[i][1]} ${t[i][2]}\n`;
+    console.log(str);
+}
+
+
+/*
+    Display
+*/
+function initRender() {
+    renderer = new THREE.WebGLRenderer();
+    var w=$('#three').width();
+    var h=$('#three').height();
+    var z=defaultCameraPosition;
+    renderer.setSize(w,h);
+    renderer.setClearColor('black');
+    $('#three')[0].appendChild(renderer.domElement);
+    scene = new THREE.Scene();
+    camera = new THREE.OrthographicCamera( -w/2/(z*zoom),w/2/(z*zoom),h/2/(z*zoom),-h/2/(z*zoom),0.1,1000);
+    aspectRatio = w/h;
+    /*TEST*///uniforms.aspectRatio.value=aspectRatio;
+    camera.position.z = z;
+    scene.add(camera);
+    trackball = new THREE.TrackballControls(camera,renderer.domElement);
+    trackball.dynamicDampingFactor=1.0;
+
+    renderer.domElement.addEventListener('DOMMouseScroll', mousewheel, false);
+    renderer.domElement.addEventListener('mousewheel', mousewheel, false);
+
+    window.addEventListener('resize', resize, true);
+}
+
+function configureMaterial() {
+    if(selectedProjection=="stereographic") {
+        // universal stereographic projection with vertex shader
+        uniforms={zoom:{type:'f',value:zoom},aspectRatio:{type:'f',value:aspectRatio}};
+        material = new THREE.ShaderMaterial({
+            wireframe: true,
+            uniforms: uniforms,
+            vertexShader: [
+                "uniform float zoom;",
+                "uniform float aspectRatio;",
+                "varying vec3 vnormal;",
+                "varying vec3 vcolor;",
+                "void main(){",
+                    "vnormal=normal;",
+                    "vec4 p=viewMatrix*vec4(position,0.0);",
+                    "p=p/length(p);",
+                    "float invPI=0.3183098861837907;",
+                    "float a=atan(p.y,p.x);",
+                    "float b=zoom*acos(p.z/length(p))*invPI;",
+                    "gl_Position=vec4(b*cos(a),b*sin(a),length(p)*0.1,1.0);",
+                    "gl_Position.x=gl_Position.x/aspectRatio;",
+                    //"if(b>0.9) vnormal=vec3(0,0,0);",
+                "}"
+            ].join(" "),
+            fragmentShader: [
+                "varying vec3 vnormal;",
+                "varying vec3 vcolor;",
+                "void main(){",
+//                "if(length(vnormal)>0.0)",
+//                "    gl_FragColor=vec4(vcolor,1);",
+                "    gl_FragColor=vec4(normalize(vec3(1,1,1)+vnormal),1);",
+//                "else",
+//                "    discard;",
+                "}"
+            ].join(" "),
+            vertexColors: THREE.VertexColors,
+            shading:THREE.SmoothShading
+        });
+    }
+    else {
+        material = new THREE.MeshNormalMaterial({
+            wireframe: (selectedRenderStyle === "wireframe")
+        });
+/*
+        material = new THREE.MeshBasicMaterial({
+            wireframe: (selectedRenderStyle === "wireframe"),
+            vertexColors:THREE.VertexColors
+        });
+*/
+        //material.opacity=0.85;
+        //material.transparent=true;
+    }
+    material.needsUpdate=true;
+
+    if(mesh!=null) {
+        console.log("removing old mesh");
+        scene.remove(mesh);
+    }
+    mesh=new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+}
+
+function intermediate(t) {
+    let i;
+    let uids = Object.keys(brains);
+    for(i=0;i<geometry.vertices.length;i++) {
+        geometry.vertices[i].x=t*brains[uids[0]].native[i][0] + (1-t)*brains[uids[0]].morph[i][0];
+        geometry.vertices[i].y=t*brains[uids[0]].native[i][1] + (1-t)*brains[uids[0]].morph[i][1];
+        geometry.vertices[i].z=t*brains[uids[0]].native[i][2] + (1-t)*brains[uids[0]].morph[i][2];
+    };
+    geometry.verticesNeedUpdate=true;
+    geometry.computeFaceNormals();
+    geometry.normalsNeedUpdate=true;
+}
+
+function mousewheel(e) {
+    var val;
+    if(e.wheelDelta){//IE/Opera/Chrome 
+        val=-e.wheelDelta;
+    }else if(e.detail){//Firefox
+        val=e.detail;
+    }
+
+    zoom=uniforms.zoom.value;
+    zoom*=1-val/100.0;
+    if(zoom<1)
+        zoom=1;
+    uniforms.zoom.value=zoom;
+    resize();
+    render();
+}
+
+function render() {
+    renderer.render(scene,camera);
+    trackball.update();
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    if(geometry)
+        geometry.colorsNeedUpdate=true;
+    render();
+}
+
+function resize(e) {
+    var w=$('#three').width();
+    var h=$('#three').height();
+    const z = defaultCameraPosition;
+    aspectRatio = w/h;
+    uniforms.aspectRatio.value=aspectRatio;
+    renderer.setSize( w, h );
+    camera.left = -w/2/(z*zoom);
+    camera.right = w/2/(z*zoom);
+    camera.top = h/2/(z*zoom);
+    camera.bottom = -h/2/(z*zoom);
+    camera.updateProjectionMatrix();
+}
+
+/*
+    // center and normalise source mesh
+    mi = JSON.parse(JSON.stringify(sph[0]));
+    ma = JSON.parse(JSON.stringify(sph[0]));
+    for(i = 0; i<sph.length; i++) {
+        mi[0] = (mi[0]>sph[i][0])?sph[i][0]:mi[0];
+        mi[1] = (mi[1]>sph[i][1])?sph[i][1]:mi[1];
+        mi[2] = (mi[2]>sph[i][2])?sph[i][2]:mi[2];
+        ma[0] = (ma[0]<sph[i][0])?sph[i][0]:ma[0];
+        ma[1] = (ma[1]<sph[i][1])?sph[i][1]:ma[1];
+        ma[2] = (ma[2]<sph[i][2])?sph[i][2]:ma[2];
+    }
+    for(i = 0; i<sph.length; i++) {
+        sph[i][0] -= (mi[0] + ma[0])/2.0;
+        sph[i][1] -= (mi[1] + ma[1])/2.0;
+        sph[i][2] -= (mi[2] + ma[2])/2.0;
+
+        sph[i] = sca3D(sph[i], 1/norm3D(sph[i]));
+    }
+*/
+
+
+</script>
+
+</body>
+</html>
