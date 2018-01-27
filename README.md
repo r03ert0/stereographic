@@ -27,3 +27,5 @@ the landmarks will transform to register with the new map.
 <img width="1428" alt="screenshot2" src="https://user-images.githubusercontent.com/2310732/34650648-c93c5530-f3c4-11e7-9332-88200a4381e9.png">
 
 <img width="1428" alt="screenshot3" src="https://user-images.githubusercontent.com/2310732/34650649-ce7dbaac-f3c4-11e7-96a9-cfd864b17113.png">
+
+<img src="https://user-images.githubusercontent.com/2310732/35473124-a61537e0-037b-11e8-9376-f3cd4e96dca5.gif" >
