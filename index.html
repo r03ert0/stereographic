@@ -62,12 +62,17 @@ input {
 </svg>
 -->
 
+<input type="file" id="i-open-directory" webkitdirectory multiple />
 <input type="file" id="i-open-mesh" />
 <input type="file" id="i-open-sulcal-map" />
 <input type="file" id="i-open-annotation" />
 <input type="file" id="i-open-native-mesh" />
 
 <div id="toolbar">
+    <button id="open-directory">Open Directory</button>
+
+    <div class="space8"></div>
+
     <button id="open-mesh">Open Spherical Mesh</button>
     <button id="open-sulcal-map" disabled>Open Sulcal Map</button>
     <button id="open-native-mesh">Open Native Mesh</button>

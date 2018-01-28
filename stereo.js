@@ -15,6 +15,7 @@ var renderer,
     selectedProjection, // currently selected projection
     newRegionFlag,
     zoom = 1,
+    defaultCameraPosition = 30,
     aspectRatio = 1,
     uniforms = {zoom: {type: 'f', value: zoom}, aspectRatio: {type: 'f', value: aspectRatio}},
     mouseIsDown = false,
@@ -411,6 +412,41 @@ function changeRenderStyle(renderStyle) {
 /*
     Open brain mesh and sulcal map
 */
+function findAndLoad(files, targetFile, callback) {
+    var def = $.Deferred();
+    var found = false;
+    var file;
+    for (let i=0; i<files.length; i++) {
+        const path = files[i].webkitRelativePath;
+        const name = path.split('/')[1];
+        if(name === targetFile) {
+            found = true;
+            console.log('reading',name);
+            file = files[i];
+        }
+    }
+    if(found) {
+        return callback(file);
+    }
+
+    return def.reject("ERROR: Unable to find file", targetFile);
+}
+function chooseDirectory() {
+    var input=document.getElementById("i-open-directory");
+    input.type="file";
+    input.onchange=function(e) {
+        console.log("onchange: chooseDirectory");
+        var files=this.files;
+        const path = files[0].webkitRelativePath;
+        const base = path.split('/')[0];
+
+        findAndLoad(files, 'surf.sphere.ply.gz', openMesh)
+        .then(() => findAndLoad(files, 'surf.sulc.gz', openSulcalMap))
+        .then(() => findAndLoad(files, 'surf.ply.gz', openNativeMesh))
+        .then(() => findAndLoad(files, base + '.json', openPaths))
+    }
+    input.click();
+}
 function chooseMesh() {
     var input=document.getElementById("i-open-mesh");
     input.type="file";
@@ -488,7 +524,8 @@ function openPLYMesh(name) {
     return def.promise();
 }
 function openMesh(name) {
-    $.when(openPLYMesh(name)).then(function(geo) {
+    return $.when(openPLYMesh(name))
+    .then(function(geo) {
         geometry_sphere=geo;
         geometry=geo;
         $("#info").append("<b>Spherical Mesh: </b>"+name.name+"<br />");
@@ -500,7 +537,7 @@ function openMesh(name) {
     });
 }
 function openNativeMesh(name) {
-    $.when(openPLYMesh(name)).then(function(geo) {
+    return $.when(openPLYMesh(name)).then(function(geo) {
         geometry_native=geo;
 
         var val;
@@ -603,7 +640,7 @@ function initRender() {
     camera = new THREE.OrthographicCamera( -w/2/(z*zoom),w/2/(z*zoom),h/2/(z*zoom),-h/2/(z*zoom),0.1,1000);
     aspectRatio = w/h;
     /*TEST*/uniforms.aspectRatio.value=aspectRatio;
-    camera.position.z = 50;
+    camera.position.z = defaultCameraPosition;
     scene.add(camera);
     trackball = new THREE.TrackballControls(camera,renderer.domElement);
     trackball.dynamicDampingFactor=1.0;
@@ -713,6 +750,7 @@ function chooseAnnotation() {
     input.click();
 }
 function openPaths(name) {
+    var def = $.Deferred();
     var reader = new FileReader();
     reader.onload = function(e) {
         var i;
@@ -722,7 +760,9 @@ function openPaths(name) {
             Regions[i].path.remove();
         // configure new paths
         for(i=0;i<tmpRegions.length;i++) {
-            console.log("configuring path "+i);
+            if(typeof verbose !== 'undefined' && verbose) {
+                console.log("configuring path "+i);
+            }
             var reg=tmpRegions[i];
             var path=new paper.Path();
             path.importJSON(reg.path);
@@ -733,8 +773,11 @@ function openPaths(name) {
         $("#info").append("<b>Annotation: </b>"+name.name+"<br />");
         Data.paths = tmpRegions;
         Data.pathsName = name.name;
+        def.resolve();
     };
     reader.readAsText(name);
+
+    return def.promise();
 }
 function savePaths() {
     var filename=prompt("File name",filename);
@@ -973,7 +1016,9 @@ function labels2lines() {
 
     for(i=0;i<Regions.length;i++) {
         var lgeo=new THREE.Geometry();
-        var lmat=new THREE.LineBasicMaterial({linewidth:5,color:0xff0000});
+        var np = 0;
+//var lmat=new THREE.LineBasicMaterial({linewidth:5,color:0xff0000});
+        var lmat=new THREE.MeshBasicMaterial({color:0xff0000});
         lmat.color.r=Regions[i].path.strokeColor.red;
         lmat.color.g=Regions[i].path.strokeColor.green;
         lmat.color.b=Regions[i].path.strokeColor.blue;
@@ -981,7 +1026,7 @@ function labels2lines() {
         var path=new paper.Path();
         arr.push(path);
         path.importJSON(Regions[i].path.exportJSON());
-        path.flatten(10);
+        path.flatten(1);
         for(j=0;j<path.segments.length;j++) {
             q=inverse(path.segments[j].point.x,path.segments[j].point.y);
             p=stereographic2sphere(q.x,q.y);
@@ -1043,8 +1088,11 @@ function labels2lines() {
             lgeo.vertices.push(a);
             lgeo.vertices.push(b);
             lgeo.vertices.push(c);
+            lgeo.faces.push(new THREE.Face3(np,np+1,np+2));
+            np += 3;
         }
-        var line=new THREE.Line(lgeo,lmat);
+//var line=new THREE.Line(lgeo,lmat);
+        var line=new THREE.Mesh(lgeo,lmat);
         scene.add(line);
         lines.push(line);
     }
@@ -1180,6 +1228,7 @@ function init() {
     // init annotation
     initAnnotationOverlay();
 
+    $("#open-directory").click(chooseDirectory);
     $("#open-mesh").click(chooseMesh);
     $("#open-native-mesh").click(chooseNativeMesh);
     $("#open-sulcal-map").click(chooseSulcalMap);
@@ -1298,6 +1347,7 @@ function messageReceived(msg) {
 function resize(e) {
     var h=window.innerHeight;
     var w=window.innerWidth;
+    const z = defaultCameraPosition;
 
     $("#overlay").attr('width',w);
     $("#overlay").attr('height',h);
@@ -1312,10 +1362,12 @@ function resize(e) {
     aspectRatio = w/h;
     uniforms.aspectRatio.value=aspectRatio;
     renderer.setSize( w,h );
-/*
-    camera.aspect = window.innerWidth / window.innerHeight;
+
+    camera.left = -w/2/(z*zoom);
+    camera.right = w/2/(z*zoom);
+    camera.top = h/2/(z*zoom);
+    camera.bottom = -h/2/(z*zoom);
     camera.updateProjectionMatrix();
-*/
 }
 
 function mousewheel(e) {
