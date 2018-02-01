@@ -227,7 +227,7 @@ function mouseUp() {
         convertScreenPathToReference(region);
 }
 function convertReferencePathsToScreen() {
-    console.log("[convertReferencePathsToScreen]");
+    // console.log("[convertReferencePathsToScreen]");
 
     var i,j,p,hi,ho;
 
@@ -412,7 +412,7 @@ function changeRenderStyle(renderStyle) {
 /*
     Open brain mesh and sulcal map
 */
-function findAndLoad(files, targetFile, callback) {
+function findAndLoad(files, targetFile, callback, fallback) {
     var def = $.Deferred();
     var found = false;
     var file;
@@ -428,8 +428,11 @@ function findAndLoad(files, targetFile, callback) {
     if(found) {
         return callback(file);
     }
+    if(typeof fallback !== 'undefined') {
+        fallback();
+    }
 
-    return def.reject("ERROR: Unable to find file", targetFile);
+    return def.resolve("Unable to find file", targetFile);
 }
 function chooseDirectory() {
     var input=document.getElementById("i-open-directory");
@@ -440,10 +443,13 @@ function chooseDirectory() {
         const path = files[0].webkitRelativePath;
         const base = path.split('/')[0];
 
+        $("#info").append("<b>Directory: </b>"+base+"<br />");
+
         findAndLoad(files, 'surf.sphere.ply.gz', openMesh)
-        .then(() => findAndLoad(files, 'surf.sulc.gz', openSulcalMap))
+        .then(() => findAndLoad(files, 'surf.curv.txt.gz', openSulcalMap))
         .then(() => findAndLoad(files, 'surf.ply.gz', openNativeMesh))
-        .then(() => findAndLoad(files, base + '.json', openPaths))
+        .then(() => findAndLoad(files, 'sulci.json', openPaths))
+        .then(() => findAndLoad(files, 'rotation.txt', openRotation, ()=>console.log('WARNING: No rotation.txt file available')))
     }
     input.click();
 }
@@ -780,7 +786,7 @@ function openPaths(name) {
     return def.promise();
 }
 function savePaths() {
-    var filename=prompt("File name",filename);
+    var filename=prompt("File name","sulci");
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
     for(var i=0;i<Regions.length;i++)
         tmpRegions[i].path=Regions[i].path.exportJSON();
@@ -789,6 +795,46 @@ function savePaths() {
     var a = document.createElement('a');
     a.href = jsonData;
     a.download = filename+'.json';
+    document.body.appendChild(a);
+    a.click();
+}
+function openRotation(name) {
+    var def = $.Deferred();
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var i;
+        var arr=e.target.result.replace(/\n/g,' ').split(' ').map((b)=>parseFloat(b)).splice(0,16);
+        arr[3] = 0;
+        arr[7] = 0;
+        arr[11] = 0;
+        var rot = new THREE.Matrix4();
+        var pos = trackball.position0;
+        var up = trackball.up0;
+        rot.set(...arr);
+        trackball.position0 = pos.applyMatrix4(rot);
+        trackball.up0 = up.applyMatrix4(rot);
+        trackball.reset();
+        $("#info").append("<b>Rotation: </b>"+name.name+"<br />");
+        Data.rotation = rot;
+        Data.rotationName = name.name;
+        def.resolve();
+    };
+    reader.readAsText(name);
+
+    return def.promise();
+}
+function saveRotation() {
+    var filename=prompt("File name","rotation");
+    var mat = camera.matrix;
+    var rot = new THREE.Matrix4();
+    rot.extractRotation(mat);
+    var txt = [...rot.transpose().elements]
+              .map((b,i)=>(i==0||(i+1)%4>0)?`${b} `:`${b}\n`)
+              .join('');
+    var txtData = 'data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
+    var a = document.createElement('a');
+    a.href = txtData;
+    a.download = filename+'.txt';
     document.body.appendChild(a);
     a.click();
 }
@@ -1026,7 +1072,7 @@ function labels2lines() {
         var path=new paper.Path();
         arr.push(path);
         path.importJSON(Regions[i].path.exportJSON());
-        path.flatten(1);
+        path.flatten(5);
         for(j=0;j<path.segments.length;j++) {
             q=inverse(path.segments[j].point.x,path.segments[j].point.y);
             p=stereographic2sphere(q.x,q.y);
@@ -1234,6 +1280,7 @@ function init() {
     $("#open-sulcal-map").click(chooseSulcalMap);
     $("#open-annotation").click(chooseAnnotation);
     $("#save").click(savePaths);
+    $("#saveRotation").click(saveRotation);
     $("#export").click(exportLines);
     $("#import").click(importLines);
     $("#labels").click(labels2lines);//exportLabels);
