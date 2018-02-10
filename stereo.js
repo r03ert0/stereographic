@@ -1,9 +1,10 @@
-var	 renderer,
+var renderer,
     scene,
     material = null,
     mesh = null,
     camera,
     trackball,
+    Data = {},          // object centralising all data, geometry_sphere, geometry_native, names, etc.
     geometry = null,
     geometry_sphere = null,
     geometry_native = null,
@@ -14,11 +15,12 @@ var	 renderer,
     selectedProjection, // currently selected projection
     newRegionFlag,
     zoom = 1,
+    defaultCameraPosition = 30,
     aspectRatio = 1,
     uniforms = {zoom: {type: 'f', value: zoom}, aspectRatio: {type: 'f', value: aspectRatio}},
     mouseIsDown = false,
     navEnabled,
-    counter = 1,	// for path unique ID
+    counter = 1, // for path unique ID
     filename = "Untitled",
     flag_sphericalMeshLoaded = false,
     flag_sulcalMapLoaded = false,
@@ -27,7 +29,8 @@ var	 renderer,
     lines = [],
     stereographic_rotation = null,    // stereographic rotation matrix
     orthographic_rotation = null,     // orthographic rotation matrix
-    renderStyle;
+    renderStyle,
+    UID = parseInt(Math.random()*1e+6).toString(16);
 
 function regionUniqueID() {
     var i,
@@ -93,7 +96,7 @@ function removeRegion(reg) {
     reg.path.remove();
 }
 function selectRegion(reg) {
-    var	i;
+    var i;
 
     // Select path
     for(i=0;i<Regions.length;i++) {
@@ -224,8 +227,8 @@ function mouseUp() {
         convertScreenPathToReference(region);
 }
 function convertReferencePathsToScreen() {
-    console.log("[convertReferencePathsToScreen]");
-    
+    // console.log("[convertReferencePathsToScreen]");
+
     var i,j,p,hi,ho;
 
     // arrow: remove previous arrows
@@ -262,33 +265,35 @@ function convertReferencePathsToScreen() {
         }
 
         // arrow: add arrow and path name
-        var ns=path.segments.length;
-        var lp0=path.segments[ns-2].point;
-        var lp1=paper.view.viewToProject(new paper.Point(path.segments[ns-1].point));
-        var iv={x:lp0.x-lp1.x,y:lp0.y-lp1.y};
-        var niv=Math.sqrt(iv.x*iv.x+iv.y*iv.y);
-        iv.x*=10/niv;
-        iv.y*=10/niv;
-        var jv={x:-iv.y,y:iv.x};
-        var path=new paper.Path();
-        var ap=paper.view.viewToProject(new paper.Point(lp1.x-jv.x+iv.x,lp1.y-jv.y+iv.y));
-        var bp=paper.view.viewToProject(new paper.Point(lp1.x+jv.x+iv.x,lp1.y+jv.y+iv.y));
-        path.add(ap);
-        path.add(lp1);
-        path.add(bp);
-        path.strokeWidth=1;
-        path.strokeColor='black';
-        arrows.push(path);
-        var text = new paper.PointText(Regions[j].path.segments[parseInt(Regions[j].path.segments.length/2)].point);
-        text.justification = 'center';
-        text.fillColor = 'white';
-        text.content = Regions[j].name;
-        arrows.push(text);
+        if(selectedTool=="move") {
+            var ns=path.segments.length;
+            var lp0=path.segments[ns-2].point;
+            var lp1=paper.view.viewToProject(new paper.Point(path.segments[ns-1].point));
+            var iv={x:lp0.x-lp1.x,y:lp0.y-lp1.y};
+            var niv=Math.sqrt(iv.x*iv.x+iv.y*iv.y);
+            iv.x*=10/niv;
+            iv.y*=10/niv;
+            var jv={x:-iv.y,y:iv.x};
+            var path=new paper.Path();
+            var ap=paper.view.viewToProject(new paper.Point(lp1.x-jv.x+iv.x,lp1.y-jv.y+iv.y));
+            var bp=paper.view.viewToProject(new paper.Point(lp1.x+jv.x+iv.x,lp1.y+jv.y+iv.y));
+            path.add(ap);
+            path.add(lp1);
+            path.add(bp);
+            path.strokeWidth=1;
+            path.strokeColor='black';
+            arrows.push(path);
+            var text = new paper.PointText(Regions[j].path.segments[parseInt(Regions[j].path.segments.length/2)].point);
+            text.justification = 'center';
+            text.fillColor = 'white';
+            text.content = Regions[j].name;
+            arrows.push(text);
+        }
     }
 }
 function convertScreenPathToReference(region) {
     console.log("[convertScreenPathToReference]");
-    
+
     region.path0=[];
     var i;
     var path=region.path;
@@ -320,6 +325,8 @@ function backToPreviousTool(prevTool) {
     },500);
 }
 function changeTool(tool) {
+    console.log("[changeTool]",tool);
+
     var prevTool=selectedTool;
     selectedTool=tool;
     if(tool=="move") {
@@ -399,12 +406,53 @@ function changeRenderStyle(renderStyle) {
     selectedRenderStyle=renderStyle;
     $("#renderStyle button").removeClass('selected');
     $("#"+renderStyle).addClass('selected');
-    
+
     configureBrainDisplay();
 }
 /*
     Open brain mesh and sulcal map
 */
+function findAndLoad(files, targetFile, callback, fallback) {
+    var def = $.Deferred();
+    var found = false;
+    var file;
+    for (let i=0; i<files.length; i++) {
+        const path = files[i].webkitRelativePath;
+        const name = path.split('/')[1];
+        if(name === targetFile) {
+            found = true;
+            console.log('reading',name);
+            file = files[i];
+        }
+    }
+    if(found) {
+        return callback(file);
+    }
+    if(typeof fallback !== 'undefined') {
+        fallback();
+    }
+
+    return def.resolve("Unable to find file", targetFile);
+}
+function chooseDirectory() {
+    var input=document.getElementById("i-open-directory");
+    input.type="file";
+    input.onchange=function(e) {
+        console.log("onchange: chooseDirectory");
+        var files=this.files;
+        const path = files[0].webkitRelativePath;
+        const base = path.split('/')[0];
+
+        $("#info").append("<b>Directory: </b>"+base+"<br />");
+
+        findAndLoad(files, 'surf.sphere.ply.gz', openMesh)
+        .then(() => findAndLoad(files, 'surf.curv.txt.gz', openSulcalMap))
+        .then(() => findAndLoad(files, 'surf.ply.gz', openNativeMesh))
+        .then(() => findAndLoad(files, 'sulci.json', openPaths))
+        .then(() => findAndLoad(files, 'rotation.txt', openRotation, ()=>console.log('WARNING: No rotation.txt file available')))
+    }
+    input.click();
+}
 function chooseMesh() {
     var input=document.getElementById("i-open-mesh");
     input.type="file";
@@ -442,7 +490,7 @@ function openPLYMesh(name) {
         var result=e.target.result;
         if(name.name.split(".").pop()=="gz") {
             var inflate=new pako.Inflate();
-            var	data=new Uint8Array(result);
+            var data=new Uint8Array(result);
             var i,j,chunk=4096;//16384;
             var mi,ma;
             for(j=0;j<data.length;j+=chunk) {
@@ -482,17 +530,20 @@ function openPLYMesh(name) {
     return def.promise();
 }
 function openMesh(name) {
-    $.when(openPLYMesh(name)).then(function(geo) {
+    return $.when(openPLYMesh(name))
+    .then(function(geo) {
         geometry_sphere=geo;
         geometry=geo;
         $("#info").append("<b>Spherical Mesh: </b>"+name.name+"<br />");
         $("#open-sulcal-map").removeAttr('disabled');
         flag_sphericalMeshLoaded=true;
         configureBrainDisplay();
+        Data.sphere = geometry_sphere;
+        Data.sphereName = name.name;
     });
 }
 function openNativeMesh(name) {
-    $.when(openPLYMesh(name)).then(function(geo) {
+    return $.when(openPLYMesh(name)).then(function(geo) {
         geometry_native=geo;
 
         var val;
@@ -510,6 +561,8 @@ function openNativeMesh(name) {
         $("#info").append("<b>Native Mesh: </b>"+name.name+"<br />");
         flag_nativeMeshLoaded=true;
         configureBrainDisplay();
+        Data['native'] = geometry_native;
+        Data.nativeName = name.name;
     });
 }
 function openSulcalMap(name) {
@@ -528,7 +581,7 @@ function openSulcalMap(name) {
         var result=e.target.result;
         if(name.name.split('.').pop()=="gz") {
             var inflate=new pako.Inflate();
-            var	data=new Uint8Array(result);
+            var data=new Uint8Array(result);
             var i,j,chunk=4096;//16384;
             for(j=0;j<data.length;j+=chunk) {
                 if((j+chunk)>=data.length) {
@@ -544,18 +597,15 @@ function openSulcalMap(name) {
         var str = decoder.decode(dataView).split("\n");
         var tmp=str[0].split(" ");
         var np=parseInt(tmp[0]);
+        var values = str.splice(1).map((o)=>parseFloat(o)).slice(0,np);
         var val,ma,mi;
 
-        ma=mi=parseFloat(str[1]);
-        for(i=0;i<np;i++) {
-            val=parseFloat(str[i+1]);
-            mi=(mi>val)?val:mi;
-            ma=(ma<val)?val:ma;
-        }
+        ma=Math.max(...values);
+        mi=Math.min(...values);
+        val = values.map((v)=>(v-mi)/(ma-mi));
 
         for(i=0;i<geometry.vertices.length;i++) {
-            val=(parseFloat(str[i+1])-mi)/(ma-mi);
-            geometry.colors[i]= new THREE.Color().setRGB(val,val,val);
+            geometry.colors[i]= new THREE.Color().setRGB(val[i],val[i],val[i]);
         }
         for(i=0;i<geometry.faces.length;i++) {
             geometry.faces[i].vertexColors[0]=geometry.colors[geometry.faces[i].a];
@@ -567,6 +617,8 @@ function openSulcalMap(name) {
         configureBrainDisplay();
 
         $("#info").append("<b>Sulcal map: </b>"+name.name+"<br />");
+        Data.map = val;
+        Data.mapName = name.name;
 
         def.resolve();
     }
@@ -594,7 +646,7 @@ function initRender() {
     camera = new THREE.OrthographicCamera( -w/2/(z*zoom),w/2/(z*zoom),h/2/(z*zoom),-h/2/(z*zoom),0.1,1000);
     aspectRatio = w/h;
     /*TEST*/uniforms.aspectRatio.value=aspectRatio;
-    camera.position.z = 10;
+    camera.position.z = defaultCameraPosition;
     scene.add(camera);
     trackball = new THREE.TrackballControls(camera,renderer.domElement);
     trackball.dynamicDampingFactor=1.0;
@@ -603,7 +655,7 @@ function initRender() {
         paper.view.draw();
     });
 }
-function configureMaterial() {		
+function configureMaterial() {
     if(selectedProjection=="stereographic") {
         // universal stereographic projection with vertex shader
         uniforms={zoom:{type:'f',value:zoom},aspectRatio:{type:'f',value:aspectRatio}};
@@ -633,10 +685,10 @@ function configureMaterial() {
                 "varying vec3 vcolor;",
                 "void main(){",
                 "if(length(vnormal)>0.0)",
-                "	gl_FragColor=vec4(vcolor,1);",
-                //"	gl_FragColor=vec4(normalize(vec3(1,1,1)+vnormal),1);",
+                "    gl_FragColor=vec4(vcolor,1);",
+                //"    gl_FragColor=vec4(normalize(vec3(1,1,1)+vnormal),1);",
                 "else",
-                "	discard;",
+                "    discard;",
                 "}"
             ].join(" "),
             vertexColors: THREE.VertexColors,
@@ -680,7 +732,7 @@ function initAnnotationOverlay() {
     $("svg").width(width);
     $("svg").height(height);
 
-    var	canvas=$("#overlay")[0];
+    var canvas=$("#overlay")[0];
 
     paper.setup(canvas);
     paper.settings.handleSize=10;
@@ -704,6 +756,7 @@ function chooseAnnotation() {
     input.click();
 }
 function openPaths(name) {
+    var def = $.Deferred();
     var reader = new FileReader();
     reader.onload = function(e) {
         var i;
@@ -713,7 +766,9 @@ function openPaths(name) {
             Regions[i].path.remove();
         // configure new paths
         for(i=0;i<tmpRegions.length;i++) {
-            console.log("configuring path "+i);
+            if(typeof verbose !== 'undefined' && verbose) {
+                console.log("configuring path "+i);
+            }
             var reg=tmpRegions[i];
             var path=new paper.Path();
             path.importJSON(reg.path);
@@ -722,11 +777,16 @@ function openPaths(name) {
         convertReferencePathsToScreen();
 
         $("#info").append("<b>Annotation: </b>"+name.name+"<br />");
+        Data.paths = tmpRegions;
+        Data.pathsName = name.name;
+        def.resolve();
     };
     reader.readAsText(name);
+
+    return def.promise();
 }
 function savePaths() {
-    var filename=prompt("File name",filename);
+    var filename=prompt("File name","sulci");
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
     for(var i=0;i<Regions.length;i++)
         tmpRegions[i].path=Regions[i].path.exportJSON();
@@ -738,11 +798,89 @@ function savePaths() {
     document.body.appendChild(a);
     a.click();
 }
-function exportLines() {
-    var filename=prompt("File name",filename);
-    var tmpRegions=JSON.parse(JSON.stringify(Regions));
-    var content=[];
-    var i,j,p,arr=[];
+function openRotation(name) {
+    var def = $.Deferred();
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var i;
+        var arr=e.target.result.replace(/\n/g,' ').split(' ').map((b)=>parseFloat(b)).splice(0,16);
+        arr[3] = 0;
+        arr[7] = 0;
+        arr[11] = 0;
+        var rot = new THREE.Matrix4();
+        var pos = trackball.position0;
+        var up = trackball.up0;
+        rot.set(...arr);
+        trackball.position0 = pos.applyMatrix4(rot);
+        trackball.up0 = up.applyMatrix4(rot);
+        trackball.reset();
+        $("#info").append("<b>Rotation: </b>"+name.name+"<br />");
+        Data.rotation = rot;
+        Data.rotationName = name.name;
+        def.resolve();
+    };
+    reader.readAsText(name);
+
+    return def.promise();
+}
+function saveRotation() {
+    var filename=prompt("File name","rotation");
+    var mat = camera.matrix;
+    var rot = new THREE.Matrix4();
+    rot.extractRotation(mat);
+    var txt = [...rot.transpose().elements]
+              .map((b,i)=>(i==0||(i+1)%4>0)?`${b} `:`${b}\n`)
+              .join('');
+    var txtData = 'data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
+    var a = document.createElement('a');
+    a.href = txtData;
+    a.download = filename+'.txt';
+    document.body.appendChild(a);
+    a.click();
+}
+function flatten(path,n) {
+    var length=path.length;
+    var i,t;
+    var p0,p1,p2,p3,s0,s1,s2,s3;
+    var arr=[];
+
+    for(i=0;i<path.segments.length-1;i++) {
+        p0=path.segment[i].point;
+        p1=path.segment[i].handleOut;
+        p2=path.segment[i+1].handleIn;
+        p3=path.segment[i+1].point;
+        p1.x+=p0.x;
+        p1.y+=p0.y;
+        p2.x+=p3.x;
+        p2.y+=p3.y;
+        s0=screen2stereographic(p0);
+        s1=screen2stereographic(p1);
+        s2=screen2stereographic(p2);
+        s3=screen2stereographic(p3);
+    
+        if(i<path.segments.length-2) {
+            for(t=0;t<1;t+=1/n) {
+                var s={};
+                s.x=(1-t)*s0.x+3*pow(1-t,2)*t*s1.x+3*(1-t)*t*t*s2.x+t*t*t*s3.x;
+                s.y=(1-t)*s0.y+3*pow(1-t,2)*t*s1.y+3*(1-t)*t*t*s2.y+t*t*t*s3.y;
+                arr.push(s);
+            }
+        } else {
+            for(t=0;t<=1;t+=1/n) {
+                var s={};
+                s.x=(1-t)*s0.x+3*pow(1-t,2)*t*s1.x+3*(1-t)*t*t*s2.x+t*t*t*s3.x;
+                s.y=(1-t)*s0.y+3*pow(1-t,2)*t*s1.y+3*(1-t)*t*t*s2.y+t*t*t*s3.y;
+                arr.push(s);
+            }
+        }
+    }
+    return arr;
+}
+
+function lineset() {
+    let i, j, p, tmp;
+    var arr = [], content = [];
+
     content.push(Regions.length);
     for(i=0;i<Regions.length;i++) {
         content.push(Regions[i].name);
@@ -758,8 +896,23 @@ function exportLines() {
         }
         content.push(line.join(" "));
     }
-    for(i in arr)
-        arr[i].remove();
+    for(tmp of arr)
+        tmp.remove();
+
+    return content;
+}
+
+function exportLines() {
+    var filename=prompt("File name",filename);
+    var tmpRegions=JSON.parse(JSON.stringify(Regions));
+    var i, j, p;
+    var content = lineset();
+/*
+    for(i=0;i<Regions.length;i++) {
+        content.push(Regions[i].name);
+        var path=new paper.Path();
+    }
+*/
     var txt=content.join("\n");
     var txtData = 'data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
     var a = document.createElement('a');
@@ -768,6 +921,7 @@ function exportLines() {
     document.body.appendChild(a);
     a.click();
 }
+
 function importLines() {
     var input=document.createElement("input");
     input.type="file";
@@ -802,6 +956,7 @@ function importLines() {
     }
     input.click();
 }
+
 function exportLabels() {
     var filename=prompt("Enter a name for the labels file",filename);
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
@@ -824,7 +979,7 @@ function exportLabels() {
                     lab[k]+=1;
             }
         }
-    }	
+    }
     for(i in arr)
         arr[i].remove();
     var txt=""+geometry.vertices.length+"\n"+lab.join("\n");
@@ -835,6 +990,7 @@ function exportLabels() {
     document.body.appendChild(a);
     a.click();
 }
+
 function markLabels() {
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
     var i,j,k,p,q,arr=[],lab=[],thr=0.05,dist;
@@ -870,14 +1026,16 @@ function markLabels() {
     for(i in arr)
         arr[i].remove();
 }
+
 function sub3D(a,b) {
     return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z};
 }
+
 function dot3D(a,b) {
     return a.x*b.x+a.y*b.y+a.z*b.z;
 }
-function barycentric(p,a,b,c)
-{
+
+function barycentric(p,a,b,c) {
     var v0=sub3D(b,a),v1=sub3D(c,a),v2=sub3D(p,a);
     var d00 = dot3D(v0, v0);
     var d01 = dot3D(v0, v1);
@@ -890,6 +1048,7 @@ function barycentric(p,a,b,c)
     var u = 1 - v - w;
     return {u:u,v:v,w:w};
 }
+
 function labels2lines() {
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
     var i,j,k,p,q,arr=[],bar;
@@ -905,7 +1064,9 @@ function labels2lines() {
 
     for(i=0;i<Regions.length;i++) {
         var lgeo=new THREE.Geometry();
-        var lmat=new THREE.LineBasicMaterial({linewidth:5,color:0xff0000});
+        var np = 0;
+//var lmat=new THREE.LineBasicMaterial({linewidth:5,color:0xff0000});
+        var lmat=new THREE.MeshBasicMaterial({color:0xff0000});
         lmat.color.r=Regions[i].path.strokeColor.red;
         lmat.color.g=Regions[i].path.strokeColor.green;
         lmat.color.b=Regions[i].path.strokeColor.blue;
@@ -913,7 +1074,7 @@ function labels2lines() {
         var path=new paper.Path();
         arr.push(path);
         path.importJSON(Regions[i].path.exportJSON());
-        path.flatten(10);
+        path.flatten(5);
         for(j=0;j<path.segments.length;j++) {
             q=inverse(path.segments[j].point.x,path.segments[j].point.y);
             p=stereographic2sphere(q.x,q.y);
@@ -975,8 +1136,11 @@ function labels2lines() {
             lgeo.vertices.push(a);
             lgeo.vertices.push(b);
             lgeo.vertices.push(c);
+            lgeo.faces.push(new THREE.Face3(np,np+1,np+2));
+            np += 3;
         }
-        var line=new THREE.Line(lgeo,lmat);
+//var line=new THREE.Line(lgeo,lmat);
+        var line=new THREE.Mesh(lgeo,lmat);
         scene.add(line);
         lines.push(line);
     }
@@ -1036,7 +1200,9 @@ function unrotated2rotated(p) {
 function direct(x,y) {
     /*
         Moves a x,y reference stereographic coordinate
-        to the corresponding rotated x',y' coordinate
+        to the corresponding rotated x',y' coordinate:
+    
+        stereographic -> sphere -> rotated -> stereographic
     */
     var p=stereographic2sphere(x,y);
     var r=unrotated2rotated(p);
@@ -1044,11 +1210,45 @@ function direct(x,y) {
     return result;
 }
 function inverse(px,py) {
+    // screen -> stereographic -> sphere -> unrotated -> stereographic
     var s=screen2stereographic(px,py);
     var p=stereographic2sphere(s.x,s.y);
     var r=rotated2unrotated(p);
     var result=sphere2stereographic(r);
     return result;
+}
+
+/**
+ * @desc Basic Laplace smoothing of the native mesh
+ */
+function smoothMesh() {
+    let i, v, f;
+    let p = [];
+    let n = [];
+    for(i=0;i<geometry_native.vertices.length;i++) {
+        p[i] = [0,0,0];
+        n[i] = 0;
+    }
+    for(t of geometry_native.faces) {
+        p[t.a][0] += geometry_native.vertices[t.b].x + geometry_native.vertices[t.c].x;
+        p[t.a][1] += geometry_native.vertices[t.b].y + geometry_native.vertices[t.c].y;
+        p[t.a][2] += geometry_native.vertices[t.b].z + geometry_native.vertices[t.c].z;
+        p[t.b][0] += geometry_native.vertices[t.c].x + geometry_native.vertices[t.a].x;
+        p[t.b][1] += geometry_native.vertices[t.c].y + geometry_native.vertices[t.a].y;
+        p[t.b][2] += geometry_native.vertices[t.c].z + geometry_native.vertices[t.a].z;
+        p[t.c][0] += geometry_native.vertices[t.a].x + geometry_native.vertices[t.b].x;
+        p[t.c][1] += geometry_native.vertices[t.a].y + geometry_native.vertices[t.b].y;
+        p[t.c][2] += geometry_native.vertices[t.a].z + geometry_native.vertices[t.b].z;
+        n[t.a] += 2;
+        n[t.b] += 2;
+        n[t.c] += 2;
+    }
+    for(i=0;i<geometry_native.vertices.length;i++) {
+        geometry_native.vertices[i].x = p[i][0]/n[i];
+        geometry_native.vertices[i].y = p[i][1]/n[i];
+        geometry_native.vertices[i].z = p[i][2]/n[i];
+    }
+    geometry.verticesNeedUpdate=true;
 }
 /*
     Render mesh and annotations
@@ -1076,11 +1276,13 @@ function init() {
     // init annotation
     initAnnotationOverlay();
 
+    $("#open-directory").click(chooseDirectory);
     $("#open-mesh").click(chooseMesh);
     $("#open-native-mesh").click(chooseNativeMesh);
     $("#open-sulcal-map").click(chooseSulcalMap);
     $("#open-annotation").click(chooseAnnotation);
     $("#save").click(savePaths);
+    $("#saveRotation").click(saveRotation);
     $("#export").click(exportLines);
     $("#import").click(importLines);
     $("#labels").click(labels2lines);//exportLabels);
@@ -1095,6 +1297,7 @@ function init() {
     $("#orthographic").click(function(){changeProjection("orthographic")});
     $("#solid").click(function(){changeRenderStyle("solid")});
     $("#wireframe").click(function(){changeRenderStyle("wireframe")});
+    $("#smoothMesh").click(function(){smoothMesh()});
 
     changeTool("move");
     changeProjection("stereographic");
@@ -1104,14 +1307,96 @@ function init() {
     renderer.domElement.addEventListener('mousewheel', mousewheel, false);
 
     window.addEventListener('resize',resize, true);
+
+    // enable communication with Spherical Beier and Neely code
+    $(window).on('storage', messageReceived);
 }
 init();
 animate();
 
+function messageReceived(msg) {
+    console.log('msg', new Date());
+    console.log(msg);
+
+    if(msg.originalEvent.url.split('/').pop() !== 'sbn.html') {
+        console.log('refused: url', msg.originalEvent.url);
+        return;
+    }
+
+    if(typeof msg.originalEvent.key === 'undefined') {
+        console.log('refused: empty key');
+        return;
+    }
+
+    let data;
+
+    if(msg.originalEvent.key === 'message') {
+        console.log('accepted: message');
+        data = JSON.parse(localStorage.message);
+        switch(data.message) {
+            case 'callback':
+                console.log('callback message');
+                localStorage[UID] = JSON.stringify({
+                    timestamp: new Date(),
+                    message: 'introduction',
+                    UID: UID,
+                    'native': Data.nativeName,
+                    sphere: Data.sphereName,
+                    paths: Data.pathsName,
+                    map: Data.mapName
+                });
+                break;
+        }
+    } else if(msg.originalEvent.key === UID) {
+        console.log('accepted: UID', UID);
+        data = JSON.parse(localStorage[UID]);
+        switch(data.message) {
+            case 'lineset':
+                console.log('lineset message');
+                localStorage[UID] = JSON.stringify({
+                    timestamp: new Date(),
+                    message: 'lineset',
+                    UID: UID,
+                    lineset: JSON.stringify(lineset())
+                });
+                break;
+            case 'coordinates':
+                console.log('coordinates message');
+                localStorage[UID] = JSON.stringify({
+                    timestamp: new Date(),
+                    message: 'coordinates',
+                    UID: UID,
+                    coordinates: geometry_sphere.vertices.map((a)=>[a.x,a.y,a.z].map((b)=>b.toFixed(4)).join(',')).join(' ')
+                });
+                break;
+            case 'native':
+                console.log('native coordinates message');
+                localStorage[UID] = JSON.stringify({
+                    timestamp: new Date(),
+                    message: 'native',
+                    UID: UID,
+                    coordinates: geometry_native.vertices.map((a)=>[a.x,a.y,a.z].map((b)=>b.toFixed(4)).join(',')).join(' ')
+                });
+                break;
+            case 'triangles':
+                console.log('triangles message');
+                localStorage[UID] = JSON.stringify({
+                    timestamp: new Date(),
+                    message: 'triangles',
+                    UID: UID,
+                    triangles: geometry_sphere.faces.map((a)=>[a.a,a.b,a.c].join(',')).join(' ')
+                });
+                break;
+        }
+    } else {
+        console.log('unknown');
+    }
+}
+
 function resize(e) {
     var h=window.innerHeight;
-    var w=h;
     var w=window.innerWidth;
+    const z = defaultCameraPosition;
 
     $("#overlay").attr('width',w);
     $("#overlay").attr('height',h);
@@ -1126,11 +1411,14 @@ function resize(e) {
     aspectRatio = w/h;
     uniforms.aspectRatio.value=aspectRatio;
     renderer.setSize( w,h );
-/*
-    camera.aspect = window.innerWidth / window.innerHeight;
+
+    camera.left = -w/2/(z*zoom);
+    camera.right = w/2/(z*zoom);
+    camera.top = h/2/(z*zoom);
+    camera.bottom = -h/2/(z*zoom);
     camera.updateProjectionMatrix();
-*/
 }
+
 function mousewheel(e) {
     var val;
     if(e.wheelDelta){//IE/Opera/Chrome 
@@ -1144,5 +1432,6 @@ function mousewheel(e) {
     if(zoom<1)
         zoom=1;
     uniforms.zoom.value=zoom;
+    resize();
     render();
 }
