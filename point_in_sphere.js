@@ -106,7 +106,7 @@ function findClosestVertex(p, coords) {
             imin = i;
         }
     }
-    if(verbose) {
+    if(verbose>1) {
         console.log('closest vertex:', imin);
     }
     return imin;
@@ -209,6 +209,7 @@ function computeSphereHash(sph) {
     }
     console.log(`The sphere hash has ${n} cells`);
 
+    // compute all the spheres
     let spheres = [];
     for(b=0;b<Math.round(Math.PI/ah); b++) {
         spheres[b] = [];
@@ -224,6 +225,12 @@ function computeSphereHash(sph) {
         }
     }
 
+/*
+    // add two large spheres at the poles
+    spheres[0][0] = [0,0,1,4*ah];
+    spheres[Math.round(Math.PI/ah)-1][0] = [0,0,-1,4*ah];
+*/
+
     for(i=0;i<sph.t.length;i++) {
         s1 = minimumBoundingCircle(...(sph.t[i].map((o)=>sph.p[o])));
         for(b=0;b<Math.round(Math.PI/ah); b++) {
@@ -238,6 +245,7 @@ function computeSphereHash(sph) {
         }
 //        console.log(sphereHash.map((o)=>o.join('')).join('\n'));
     }
+    console.log('Sphere hash computed.');
 }
 
 /**
@@ -253,6 +261,7 @@ function computeSphereHash(sph) {
 function pointInSphere(p, sph) {
     const ah = sphereHashCellSize;
     let result;
+    let stat = 'h';
 
     // 1. Using the spherical Hash
     // if there's no sphere hash computed, compute one
@@ -273,31 +282,34 @@ function pointInSphere(p, sph) {
 
     // 2. Looking at the closest destination vertex
     if( typeof tlist === 'undefined' ) {
-        if(verbose) {
+        if(verbose>1) {
             console.log(`ERROR: empty hash. Point ${p}. Hash a,b coordinates: ${ia}, ${ib}. Going bruteforce [1]`);
         }
         let pind = findClosestVertex(p, sph.p);
         tlist = findTriangleContainingVertexIndex(pind, sph.t);
+        stat = 'v';
     }
 
     for(t of tlist) {
         const c = intersectVectorTriangle(p, sph.t[t].map((o)=>sph.p[o]));
         if(c.case === 1) {
-            result = [t, c.u, c.v];
+            result = [t, c.u, c.v, stat];
             break;
         }
     }
 
     // 3. Looking at all triangles
     if(typeof result === 'undefined') {
-        if(verbose) {
+        if(verbose>1) {
             console.log(`ERROR: no triangle for point ${p} in the hash. Going bruteforce [2]`);
         }
         for(t=0;t<sph.t.length;t++) {
             if(dot3D(p, sph.p[sph.t[t][0]])>0.9) {
                 const c = intersectVectorTriangle(p, sph.t[t].map((o)=>sph.p[o]));
                 if(c.case === 1) {
-                    result = [t, c.u, c.v];
+//                    console.log(p);
+                    stat = 't';
+                    result = [t, c.u, c.v, stat];
                     break;
                 }
             }

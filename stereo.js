@@ -905,12 +905,14 @@ function lineset() {
 function exportLines() {
     var filename=prompt("File name",filename);
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
-    var i,j,p;
+    var i, j, p;
     var content = lineset();
+/*
     for(i=0;i<Regions.length;i++) {
         content.push(Regions[i].name);
         var path=new paper.Path();
     }
+*/
     var txt=content.join("\n");
     var txtData = 'data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
     var a = document.createElement('a');

@@ -4,7 +4,8 @@ for(var code of [
     fs.readFileSync('point_in_sphere.js'),
     fs.readFileSync('linalg.js'),
     fs.readFileSync('intersect_vector_triangle.js'),
-    fs.readFileSync('minimum_bounding_circle.js')
+    fs.readFileSync('minimum_bounding_circle.js'),
+    fs.readFileSync('sbn.js')
 ]) {
     eval(code.toString());
 }
@@ -60,6 +61,15 @@ function equalFloatArray(a, b) {
 }
 
 setSphereHashCellSize(0.03);
+
+describe('Linear algebra', function() {
+    describe('transpose', function() {
+        it('should return [[1,3,5], [2,4,6]] for [[1,2],[3,4],[5,6]]', function() {
+            const result = transpose([[1,2],[3,4],[5,6]]);
+            assert.deepEqual(result, [[1,3,5], [2,4,6]]);
+      });
+    });
+});
 
 describe('Point in sphere', function() {
     describe('sphere2sinusoidal', function() {
@@ -175,6 +185,19 @@ describe('Point in sphere', function() {
         });
     });
 });
+
+describe('Spherical Beier and Neely morphing', function() {
+    describe('sbn', function() {
+        it('should return [2pi, pi/2] for [-1, 0, 0]', function() {
+            assert(equalFloatArray(sphere2sinusoidal([-1, 0, 0]), [2*Math.PI, Math.PI/2]));
+            sph = sph.splice(0, nv).map((a)=>a.split(' ').map((b)=>parseFloat(b)));
+            var sph2 = sbn(l1, l2, sph, 4);
+            console.log("Morphed coordinates:");
+            console.log(sph2.map((a)=>a.join(', ')).join('\n'));
+      });
+    });
+});
+
 
 /*
 computeSphereHash(ico);

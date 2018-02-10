@@ -3,7 +3,7 @@
     linalg.js
 */
 
-verbose = false;
+var verbose = false;
 
 /**
   * @function transform
@@ -76,7 +76,7 @@ function weights(l, x, maxnl) {
     for(i = 0; i<l.length; i++) {
         k += l[i].p.length-1;
     }
-    if(verbose) console.log(`Total number of segments used for morphing: ${k}`);
+    if(verbose>1) console.log(`Total number of segments used for morphing: ${k}`);
     w.w = new Float32Array(k);
     w.c = new Float32Array(2*k);
 
@@ -90,7 +90,7 @@ function weights(l, x, maxnl) {
             q1 = cross3D(r, p);                                           if(verbose>1) console.log(`q1: ${q1[0]}, ${q1[1]}, ${q1[2]}`);
             // coordinates
             w.c[2*k + 0] = Math.atan2(dot3D(x, r), dot3D(x, q1));
-            w.c[2*k + 1] = Math.acos(dot3D(x, p))/Math.acos(dot3D(p, q));    if(verbose>1) console.log(`c: ${w.c[2*i + 0]}, ${w.c[2*i + 1]}`);
+            w.c[2*k + 1] = Math.acos(dot3D(x, p))/Math.acos(dot3D(p, q)); if(verbose>1) console.log(`c: ${w.c[2*i + 0]}, ${w.c[2*i + 1]}`);
             // weight
             length = Math.acos(dot3D(p, q));                              if(verbose>1) console.log(`length: ${length}`);
             fa = Math.pow(length, a);
@@ -98,7 +98,7 @@ function weights(l, x, maxnl) {
             t = Math.acos(dot3D(p, x))/(Math.acos(dot3D(p, x)) + Math.acos(dot3D(q, x)));
             tmp = add3D(sca3D(p, 1-t), sca3D(q, t));
             fb = b + 10*Math.min(Math.min(Math.acos(dot3D(p, x)), Math.acos(dot3D(q, x))), Math.acos(dot3D(tmp, x)));
-            w.w[k] = Math.pow(fa/fb, c);                      if(verbose>1) console.log(`w: ${w.w[i]}`);
+            w.w[k] = Math.pow(fa/fb, c);                                  if(verbose>1) console.log(`w: ${w.w[i]}`);
     //        console.log("sx:%g sy:%g tx:%g ty:%g px:%g py:%g pz:%g qx:%g qy:%g qz:%g x:%g y:%g fa:%g t:%g fb:%g w:%g; ", l[i][j][0], l[i][j][1], l[i][j + 1][0], l[i][j + 1][1], p[0], p[1], p[2], q[0], q[1], q[2], w->c[k][0], w->c[k][1], fa, t, fb, w->w[k]);
             k++;
         }
@@ -248,7 +248,7 @@ function resample(l1, l2, d) {
     if(verbose) console.log("[resample]");
     let length1, length2;
     let p1, p2;
-    let i, j, k, nseg;
+    let i, j, k, nseg, totseg = 0;
 
     for(i = 0; i<l1.length; i++) {
         length1 = 0;
@@ -271,7 +271,9 @@ function resample(l1, l2, d) {
 
         resampleLine(l1[i], nseg);
         resampleLine(l2[k], nseg);
+        totseg += nseg;
     }
+    console.log(`Line sets resampled to ${totseg} points`);
 
     return 0;
 }
@@ -363,7 +365,7 @@ function sbn(l1, l2, sph, maxnl) {
     let sph2 = [];
 
     // check line pairing
-    nl = pairLines({l1: l1, l2: l2});
+    nl = pairLines({l1, l2});
 
     if(nl === 0) {
         console.log("ERROR: There are no lines in common between both sets");
@@ -382,7 +384,13 @@ function sbn(l1, l2, sph, maxnl) {
     // resample the lines to have a homogeneous number of segments
     resample(l1, l2, d);
 
+    console.log(`Morphing ${sph.length} vertices`);
     for(j = 0; j<sph.length; j++) {
+        if(verbose) {
+            if(j%1000 === 0 ) console.time('1000 vertices');
+            if((j+1)%1000 === 0 ) console.timeEnd('1000 vertices');
+        }
+
         x1 = sph[j];
 
         // 4. compute weights for x1 relative to set 1
