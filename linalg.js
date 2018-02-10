@@ -57,3 +57,43 @@ function direction(p) {
     let result = p.map((o)=>o/n);
     return result;
 }
+
+/**
+  * @function multiply
+  * @desc multiplication of matrices a and b
+  */
+function multiply(a, b) {
+    let r,c,i;
+    const am=a.length, an=a[0].length;
+    const bm=b.length, bn=b[0].length;
+    if(an != bm) {
+        console.log("ERROR: Wrong matrix dimensions in multiplication");
+        return;
+    }
+    let res = new Array(am).fill(0);
+    res=res.map(o=>new Array(bn).fill(0));
+    for(r=0;r<am;r++) {
+        for(c=0;c<bn;c++) {
+            for(i=0;i<an;i++) {
+                res[r][c] += a[r][i]*b[i][c];
+            }
+        }
+    }
+
+    return res;
+}
+
+/**
+  * @function transpose
+  * @desc transpose of matrix a
+  */
+function transpose(a) {
+    let i, j, r = new Array(a[0].length).fill(0);
+    r=r.map(o=>new Array(a.length).fill(0));
+    for(i=0;i<a.length;i++)
+    for(j=0;j<a[0].length;j++) {
+        r[j][i] = a[i][j];
+    }
+    return r;
+}
+
