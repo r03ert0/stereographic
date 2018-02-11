@@ -3,11 +3,11 @@ var paper = require('paper');
 paper.setup([5, 5]);
 
 for(var code of [
-    fs.readFileSync('resample.js'),
-    fs.readFileSync('point_in_sphere.js'),
+//    fs.readFileSync('resample.js'),
+//    fs.readFileSync('point_in_sphere.js'),
     fs.readFileSync('linalg.js'),
     fs.readFileSync('intersect_vector_triangle.js'),
-    fs.readFileSync('minimum_bounding_circle.js'),
+//    fs.readFileSync('minimum_bounding_circle.js'),
     fs.readFileSync('ply.js'),
     fs.readFileSync('sbn.js')
 ]) {
@@ -22,49 +22,8 @@ function applyRotation(rotation, p) {
     return result;
 }
 
-/**
- * @desc Generates a lineset in the format required by the C version of the sbn code
- */
-function lineset_old(regions, rotation, flagPrintSVG) {
-    let i, j, seg, p, hi, ho, tmp;
-    let arr = [], content = [];
-
-    content.push(regions.length);
-    for(i=0;i<regions.length;i++) {
-        content.push(regions[i].name);
-        var path=new paper.Path();
-        arr.push(path);
-        for(seg of regions[i].path0) {
-            p = applyRotation(rotation, [seg.px, seg.py]);
-            hi = applyRotation(rotation, [seg.px + seg.ix, seg.py + seg.iy]);
-            ho = applyRotation(rotation, [seg.px + seg.ox, seg.py + seg.oy]);
-            path.add(new paper.Segment(
-                new paper.Point(p),
-                new paper.Point(hi[0]-p[0], hi[1]-p[1]),
-                new paper.Point(ho[0]-p[0], ho[1]-p[1])
-            ));
-        }
-        path.flatten(0.01);
-        content.push(path.segments.length);
-        var line=[];
-        for(j=0;j<path.segments.length;j++) {
-            line.push(path.segments[j].point.x+","+path.segments[j].point.y);
-        }
-        content.push(line.join(" "));
-    }
-
-    if(typeof flagPrintSVG !== 'undefined' && flagPrintSVG === true) {
-        console.log(paper.project.exportSVG({ asString: true }));
-    }
-
-    for(tmp of arr)
-        tmp.remove();
-
-    return content;
-}
-
 function lineset(regions, rotation, flagPrintSVG) {
-    let i, j, seg, p, hi, ho, tmp;
+    let i, seg, p, hi, ho, tmp;
     let arr = [], content = [];
 
     for(i=0;i<regions.length;i++) {
@@ -101,7 +60,7 @@ function lineset(regions, rotation, flagPrintSVG) {
 }
 
 function morph(brain1, brain2) {
-    const {l1, tr1, sph1, nat1} = brain1;
+    const {l1, sph1} = brain1;
     const {l2, tr2, sph2, nat2} = brain2;
 
     console.log('Morphing...')
@@ -150,7 +109,7 @@ Promise.all([
     const brain2topo1 = morph({l1,tr1,sph1,nat1}, {l2,tr2,sph2,nat2});
 
     console.log('morph:', brain2topo1.length);
-    savePLYGz({p: brain2topo1, t: tr1}, `${pathResult}/geo-brain2_topo-brain1.ply.gz`);
+    savePLYGz({p: brain2topo1, t: tr1}, pathResult);
 })
 .catch((err) => console.error(err));
 
