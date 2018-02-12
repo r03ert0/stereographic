@@ -2,14 +2,15 @@ const fs = require('fs');
 var paper = require('paper');
 paper.setup([5, 5]);
 
+const pwd = process.argv[1].split('/').slice(0,-1).join('/')+'/';
 for(var code of [
 //    fs.readFileSync('resample.js'),
 //    fs.readFileSync('point_in_sphere.js'),
-    fs.readFileSync('linalg.js'),
-    fs.readFileSync('intersect_vector_triangle.js'),
+    fs.readFileSync(pwd + 'linalg.js'),
+    fs.readFileSync(pwd + 'intersect_vector_triangle.js'),
 //    fs.readFileSync('minimum_bounding_circle.js'),
-    fs.readFileSync('ply.js'),
-    fs.readFileSync('sbn.js')
+    fs.readFileSync(pwd + 'ply.js'),
+    fs.readFileSync(pwd + 'sbn.js')
 ]) {
     eval(code.toString());
 }
@@ -73,7 +74,6 @@ function morph(brain1, brain2) {
 
     return brain2topo1;
 }
-
 const pathBrain1 = process.argv[2];
 const pathBrain2 = process.argv[3];
 const pathResult = process.argv[4];
