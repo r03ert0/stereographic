@@ -355,19 +355,18 @@ function resampleMesh(tr2, sphcoords2, native2, sphcoords1as2) {
     let t, u, v;
     let n = 0;
     let nhash = 0, nverts = 0, ntris = 0;
-//BROWSER_ONLY    let t0, t1;
 
     // if there's no sphere hash computed, compute one
     if(sphereHash.length === 0) {
         console.log('Sphere hash is not computed. Computing it now');
-//BROWSER_ONLY        t0 = performance.now();
+        console.time('sphere hash');
         computeSphereHash({p: sphcoords2, t: tr2});
-//BROWSER_ONLY        t1 = performance.now();
-//BROWSER_ONLY        console.log("Spherical hash computed in " + (t1 - t0)/1000 + " seconds.")
+        console.timeEnd('sphere hash');
     }
 
-//BROWSER_ONLY    t0 = performance.now();
+    // resample vertices
     console.log('resampling vertices');
+    console.time('resampling');
     for(i=0; i<sphcoords1as2.length; i++) {
         const res = pointInSphere(
             sphcoords1as2[i],
@@ -398,12 +397,11 @@ function resampleMesh(tr2, sphcoords2, native2, sphcoords1as2) {
                 break;
         }
     }
+    console.timeEnd('resampling');
     console.log(`nhash: ${nhash}, nverts: ${nverts}, ntris: ${ntris}`);
     if(n) {
         console.log(`${n} vertices could not be resampled, ${(100*(n+1)/i)|0}% of the total`);
     }
-//BROWSER_ONLY    t1 = performance.now();
-//BROWSER_ONLY    console.log("Resampling took " + (t1 - t0)/1000 + " seconds.")
 
     return native2as1;
 }
@@ -435,8 +433,9 @@ function transform(l, w, maxnl) {
             r = cross3D(p, q);
             r = sca3D(r, 1/norm3D(r));                                             if(verbose>1) console.log(`r: ${r[0]}, ${r[1]}, ${r[2]}`);
             q1 = cross3D(r, p);                                                    if(verbose>1) console.log(`q1: ${q1[0]}, ${q1[1]}, ${q1[2]}`);
-            a = w.c[2*k + 0];
             length = Math.acos(dot3D(p, q));                                       if(verbose>1) console.log(`length: ${length}`);
+
+            a = w.c[2*k + 0];
             b = length*w.c[2*k + 1];                                               if(verbose>1) console.log(`a, b: ${a}, ${b}`);
             xy = [b*Math.cos(a), b*Math.sin(a)];                                   if(verbose>1) console.log(`xy: ${xy[0]}, ${xy[1]}`);
             x0 = stereographic2sphere(xy);                                         if(verbose>1) console.log(`x0: ${tmp[0]}, ${tmp[1]}, ${tmp[2]}`);
@@ -452,16 +451,14 @@ function transform(l, w, maxnl) {
 
     return x;
 }
+
 /**
-  * @function weights
-  * @desc Given a line set and a vertex, compute weights using maxnl number of lines
+  * @function prepareWeights
+  * @desc Precompute intermediate variables necessary for computing weights
   * @param l array Line set
-  * @param x array vertex
   * @param maxnl number Number of lines from the line set l to use to compute the weights w
-  * @returnValue object Weights
   */
-function weights(l, x, maxnl) {
-    if(verbose>1) console.log("[weights]");
+function prepareWeights(l, maxnl) {
     let i, j, k;
     let length;
     let fa, fb, t;
@@ -479,33 +476,71 @@ function weights(l, x, maxnl) {
         k += l[i].p.length-1;
     }
     if(verbose>1) console.log(`Total number of segments used for morphing: ${k}`);
-    w.w = new Float32Array(k);
-    w.c = new Float32Array(2*k);
 
-    k = 0;
-    for(i = 0; i<maxnl/*l->nlines*/; i++) {
+    for(i = 0; i<maxnl; i++) {
+        l[i].precomputed = [];
         for(j = 0; j<l[i].p.length-1; j++) {
             p = stereographic2sphere(l[i].p[j]);                          if(verbose>1) console.log(`p: ${p[0]}, ${p[1]}, ${p[2]}`);
             q = stereographic2sphere(l[i].p[j + 1]);                      if(verbose>1) console.log(`q: ${q[0]}, ${q[1]}, ${q[2]}`);
             r = cross3D(p, q);
             r = sca3D(r, 1/norm3D(r));                                    if(verbose>1) console.log(`r: ${r[0]}, ${r[1]}, ${r[2]}`);
             q1 = cross3D(r, p);                                           if(verbose>1) console.log(`q1: ${q1[0]}, ${q1[1]}, ${q1[2]}`);
-            // coordinates
-            w.c[2*k + 0] = Math.atan2(dot3D(x, r), dot3D(x, q1));
-            w.c[2*k + 1] = Math.acos(dot3D(x, p))/Math.acos(dot3D(p, q)); if(verbose>1) console.log(`c: ${w.c[2*i + 0]}, ${w.c[2*i + 1]}`);
-            // weight
             length = Math.acos(dot3D(p, q));                              if(verbose>1) console.log(`length: ${length}`);
             fa = Math.pow(length, a);
+            l[i].precomputed[j] = {p, q, r, q1, length, fa};
+        }
+    }
+}
+
+/**
+  * @function weights
+  * @desc Given a line set and a vertex, compute weights using maxnl number of lines
+  * @param l array Line set
+  * @param x array vertex
+  * @param maxnl number Number of lines from the line set l to use to compute the weights w
+  * @returnValue object Weights
+  */
+function weights(l, x, maxnl) {
+    if(verbose>1) console.log("[weights]");
+    let i, j, k;
+    let length;
+    let fa, fb, t;
+    let p, q, r, q1;
+    let tmp, acosdotpx;
+    const w = {};
+
+    const a = 0.5;  // if a = 0, there's no influence of line length on the weights
+    const b = 0.01; // a small number to ensure that the weights are defined even over the line
+    const c = 2;    // a value that determines how quickly the influence of a line decreases with distance
+
+    // count total number of segments that will be used for morphing
+    k = 0;
+    for(i = 0; i<l.length; i++) {
+        k += l[i].p.length-1;
+    }
+    if(verbose>1) console.log(`Total number of segments used for morphing: ${k}`);
+    w.w = new Float32Array(k);
+    w.c = new Float32Array(2*k);
+
+    k = 0;
+    for(i = 0; i<maxnl; i++) {
+        for(j = 0; j<l[i].p.length-1; j++) {
+           const {p, q, r, q1, length, fa} = l[i].precomputed[j];
+           acosdotpx = Math.acos(dot3D(p, x));
+
+            // coordinates
+            w.c[2*k + 0] = Math.atan2(dot3D(x, r), dot3D(x, q1));
+            w.c[2*k + 1] = acosdotpx/length;
+
+            // weight
             // transformed coordinate
-            t = Math.acos(dot3D(p, x))/(Math.acos(dot3D(p, x)) + Math.acos(dot3D(q, x)));
+            t = acosdotpx/(acosdotpx + Math.acos(dot3D(q, x)));
             tmp = add3D(sca3D(p, 1-t), sca3D(q, t));
-            fb = b + 10*Math.min(Math.min(Math.acos(dot3D(p, x)), Math.acos(dot3D(q, x))), Math.acos(dot3D(tmp, x)));
-            w.w[k] = Math.pow(fa/fb, c);                                  if(verbose>1) console.log(`w: ${w.w[i]}`);
-    //        console.log("sx:%g sy:%g tx:%g ty:%g px:%g py:%g pz:%g qx:%g qy:%g qz:%g x:%g y:%g fa:%g t:%g fb:%g w:%g; ", l[i][j][0], l[i][j][1], l[i][j + 1][0], l[i][j + 1][1], p[0], p[1], p[2], q[0], q[1], q[2], w->c[k][0], w->c[k][1], fa, t, fb, w->w[k]);
+            fb = b + 10*Math.min(Math.min(acosdotpx, Math.acos(dot3D(q, x))), Math.acos(dot3D(tmp, x)));
+            w.w[k] = Math.pow(fa/fb, c);
             k++;
         }
     }
-//    console.log("\n");
     if(verbose>1) console.log(`Total number of weights computed: ${k}`);
 
     return w;
@@ -739,6 +774,9 @@ function sbn(l1, l2, sph, maxnl) {
 
     // resample the lines to have a homogeneous number of segments
     resample(l1, l2, d);
+
+    console.log("[prepareWeights]");
+    prepareWeights(l1, maxnl);
 
     console.log(`Morphing ${sph.length} vertices`);
     for(j = 0; j<sph.length; j++) {
