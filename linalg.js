@@ -3,6 +3,7 @@ var EPSILON = 1e-10;
 /**
  * @function norm3D3D
  * @desc Vector norm
+ * @returns {number}
  */
 function norm3D(a) {
     return Math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
@@ -11,6 +12,9 @@ function norm3D(a) {
 /**
  * @function add3D
  * @desc Vector addition
+ * @param {array} a First vector
+ * @param {array} b Second vector
+ * @returns {array} The sum of a and b
  */
 function add3D(a,b) {
     return [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
