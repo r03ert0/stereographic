@@ -617,9 +617,8 @@ function resampleLine(l, nseg) {
 
     // replace the points in the original line with the resampled ones
     if(l.p.length<nseg + 1) {
-        console.log(`EEEEERRRRROOOOORRRRR!!!! ${l.p.length}, ${nseg + 1}`);
+        console.log(`ERROR: ${l.p.length}, ${nseg + 1}`);
     }
-    //console.log("\n-----------------------------------------\n");
     l.p.length = nseg + 1;
     for(i = 0; i<nseg + 1; i++) {
         l.p[i][0] = spx[i][0];
