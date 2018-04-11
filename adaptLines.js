@@ -55,7 +55,6 @@ function findPointInSphere(p, sph) {
     return result;
 }
 const l1 = JSON.parse(fs.readFileSync(pathLineset1).toString());
-console.log(JSON.stringify(l1));
 var args = [
     ply.loadPLYGz(pathSphere1),
     ply.loadPLYGz(pathSphere2),
