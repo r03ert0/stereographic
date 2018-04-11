@@ -53,6 +53,40 @@ function cross3D(a, b) {
 }
 
 /**
+ * @function add
+ * @desc Add two vectors of arbitrary length
+ * @param {array} a First vector
+ * @param {array} b Second vector
+ * @returnValues {array} The sum of a and b
+ */
+function add(a, b) {
+    let c = [];
+    let i;
+    for(i=0;i<a.length;i++) {
+        c[i] = a[i] + b[i];
+    }
+
+    return c;
+}
+
+/**
+ * @function sca
+ * @desc Scale a vector of arbitrary length by a constant
+ * @param {array} a The vector
+ * @param {number} t The constant
+ * @returnValues {array} The vector a scaled by the constant t
+ */
+function sca(a, t) {
+    let c = [];
+    let i;
+    for(i=0;i<a.length;i++) {
+        c[i] = t * a[i];
+    }
+
+    return c;
+}
+
+/**
  * @function direction
  * @desc Normalise vector to unit norm
  */
