@@ -31,7 +31,10 @@
   },
   "homepage": "https://github.com/r03ert0/stereographic#readme",
   "dependencies": {
+    "cli": "^1.0.1",
     "fmin": "0.0.2",
-    "paper-jsdom": "^0.11.5"
+    "paper-jsdom": "^0.11.5",
+    "ply.js": "git+https://git@github.com/r03ert0/ply.js.git",
+    "texmesh": "git+https://git@github.com/r03ert0/texmesh.git"
   }
 }

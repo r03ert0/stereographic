@@ -3,6 +3,7 @@ var EPSILON = 1e-10;
 /**
  * @function norm3D3D
  * @desc Vector norm
+ * @returns {number}
  */
 function norm3D(a) {
     return Math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
@@ -11,6 +12,9 @@ function norm3D(a) {
 /**
  * @function add3D
  * @desc Vector addition
+ * @param {array} a First vector
+ * @param {array} b Second vector
+ * @returns {array} The sum of a and b
  */
 function add3D(a,b) {
     return [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
@@ -46,6 +50,40 @@ function dot3D(a,b) {
   */
 function cross3D(a, b) {
     return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+}
+
+/**
+ * @function add
+ * @desc Add two vectors of arbitrary length
+ * @param {array} a First vector
+ * @param {array} b Second vector
+ * @returnValues {array} The sum of a and b
+ */
+function add(a, b) {
+    let c = [];
+    let i;
+    for(i=0;i<a.length;i++) {
+        c[i] = a[i] + b[i];
+    }
+
+    return c;
+}
+
+/**
+ * @function sca
+ * @desc Scale a vector of arbitrary length by a constant
+ * @param {array} a The vector
+ * @param {number} t The constant
+ * @returnValues {array} The vector a scaled by the constant t
+ */
+function sca(a, t) {
+    let c = [];
+    let i;
+    for(i=0;i<a.length;i++) {
+        c[i] = t * a[i];
+    }
+
+    return c;
 }
 
 /**

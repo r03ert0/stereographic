@@ -1,8 +1,8 @@
-# Stereographic
+# Cartographer
 
 Roberto Toro, January 2015
 
-Dynamic stereographic projection of spherical cortical surface meshes and vectorial annotation
+Vectorial annotation of cortical surfaces and morphing.
 
 Or in other words, a tool to draw landmarks over brain meshes. The nice thing is that you don't
 have to draw them in the folded mesh – which would be very tricky – but on a flat version of
