@@ -45,7 +45,6 @@ function findPointInSphere(p, sph) {
         if(dot3D(p, sph.p[sph.t[t][0]])>0.9) {
             const c = intersectVectorTriangle(p, sph.t[t].map((o)=>sph.p[o]));
             if(c.case === 1) {
-    //                    console.log(p);
                 stat = 't';
                 result = [t, c.u, c.v, stat];
                 break;

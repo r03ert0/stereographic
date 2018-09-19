@@ -1,9 +1,11 @@
-var renderer,
-    scene,
-    material = null,
-    mesh = null,
-    camera,
-    trackball,
+var renderer,           // used for 3d rendering
+    scene,              // used for 3d rendering
+    material = null,    // used for 3d rendering
+    mesh = null,        // used for 3d rendering
+    camera,             // used for 3d rendering
+    trackball,          // used for 3d rendering
+    uniforms = {zoom: {type: 'f', value: zoom}, aspectRatio: {type: 'f', value: aspectRatio}}, // used for 3d rendering
+    defaultCameraPosition = 40, // used for 3d rendering
     Data = {},          // object centralising all data, geometry_sphere, geometry_native, names, etc.
     geometry = null,
     geometry_sphere = null,
@@ -15,9 +17,7 @@ var renderer,
     selectedProjection, // currently selected projection
     newRegionFlag,
     zoom = 1,
-    defaultCameraPosition = 30,
     aspectRatio = 1,
-    uniforms = {zoom: {type: 'f', value: zoom}, aspectRatio: {type: 'f', value: aspectRatio}},
     mouseIsDown = false,
     navEnabled,
     counter = 1, // for path unique ID
@@ -30,7 +30,8 @@ var renderer,
     stereographic_rotation = null,    // stereographic rotation matrix
     orthographic_rotation = null,     // orthographic rotation matrix
     renderStyle,
-    UID = parseInt(Math.random()*1e+6).toString(16);
+    UID = parseInt(Math.random()*1e+6).toString(16),
+    EPSILON = 1e-10;
 
 function regionUniqueID() {
     var i,
@@ -445,6 +446,7 @@ function chooseDirectory() {
 
         $("#info").append("<b>Directory: </b>"+base+"<br />");
 
+        Data.name = base;
         findAndLoad(files, 'surf.sphere.ply.gz', openMesh)
         .then(() => findAndLoad(files, 'surf.curv.txt.gz', openSulcalMap))
         .then(() => findAndLoad(files, 'surf.ply.gz', openNativeMesh))
@@ -991,6 +993,7 @@ function exportLabels() {
     a.click();
 }
 
+/*
 function markLabels() {
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
     var i,j,k,p,q,arr=[],lab=[],thr=0.05,dist;
@@ -1026,9 +1029,18 @@ function markLabels() {
     for(i in arr)
         arr[i].remove();
 }
+*/
+
+function add3D(a,b) {
+    return {x:a.x+b.x,y:a.y+b.y,z:a.z+b.z};
+}
 
 function sub3D(a,b) {
     return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z};
+}
+
+function sca3D(a,t) {
+    return {x:a.x*t,y:a.y*t,z:a.z*t};
 }
 
 function dot3D(a,b) {
@@ -1051,6 +1063,63 @@ function barycentric(p,a,b,c) {
 
 function labels2lines() {
     var tmpRegions=JSON.parse(JSON.stringify(Regions));
+    var i,j,k,p,q,arr=[];
+
+    if(lines.length) {
+        for(i in lines)
+            scene.remove(lines[i]);
+        lines=[];
+    }
+
+    let c, s;
+    let newp;
+    const S = geometry_sphere.vertices;
+    const N = geometry_native.vertices;
+    const T = geometry.faces;
+    for(i=0;i<Regions.length;i++) {
+        var vectors = [];
+        var lgeo=new THREE.Geometry();
+        var np = 0;
+        var path=new paper.Path();
+        arr.push(path);
+        path.importJSON(Regions[i].path.exportJSON());
+        path.flatten(5);
+        for(j=0;j<path.segments.length;j++) {
+            q=inverse(path.segments[j].point.x,path.segments[j].point.y);
+            p=stereographic2sphere(q.x,q.y);
+            for(k=0;k<T.length;k++) {
+                if(dot3D(p, S[T[k].a])>0.9) {
+                    c = intersectVectorTriangle(p.toArray(), [S[T[k].a].toArray(), S[T[k].b].toArray(), S[T[k].c].toArray()]);
+                    if(c.case === 1) {
+                        newp = add3D(add3D(
+                            sca3D(N[T[k].a], 1-c.u-c.v),
+                            sca3D(N[T[k].b], c.u)),
+                            sca3D(N[T[k].c], c.v)
+                        );
+                        vectors.push(new THREE.Vector3(newp.x, newp.y, newp.z));
+                        break;
+                    }
+                }
+            }
+        }
+        var curve = new THREE.SplineCurve3( vectors );
+        var lgeo = new THREE.TubeGeometry(curve,path.segments.length,0.2,8,false);
+        var lmat = new THREE.MeshBasicMaterial({color:0xff0000});
+        lmat.color = {
+            r: Regions[i].path.strokeColor.red,
+            g: Regions[i].path.strokeColor.green,
+            b: Regions[i].path.strokeColor.blue
+        }
+        var line=new THREE.Mesh(lgeo,lmat);
+        scene.add(line);
+        lines.push(line);
+    }
+    for(i in arr)
+        arr[i].remove();
+    arr=[];
+}
+/*
+function labels2lines() {
     var i,j,k,p,q,arr=[],bar;
     var dist,mndist=[],imndist=[];
 
@@ -1122,17 +1191,6 @@ function labels2lines() {
             var a=geometry_native.vertices[imndist[0]];
             var b=geometry_native.vertices[imndist[1]];
             var c=geometry_native.vertices[imndist[2]];
-            /*
-            var sum=1/mndist[0]+1/mndist[1]+1/mndist[2];
-            var u=1/mndist[0]/sum;
-            var v=1/mndist[1]/sum;
-            var w=1/mndist[2]/sum;
-            lgeo.vertices.push(new THREE.Vector3(
-                u*a.x+v*b.x+w*c.x,
-                u*a.y+v*b.y+w*c.y,
-                u*a.z+v*b.z+w*c.z
-            ));
-            */
             lgeo.vertices.push(a);
             lgeo.vertices.push(b);
             lgeo.vertices.push(c);
@@ -1151,6 +1209,7 @@ function labels2lines() {
         arr[i].remove();
     arr=[];
 }
+*/
 /*
     Transformations
 */
@@ -1340,6 +1399,7 @@ function messageReceived(msg) {
                     timestamp: new Date(),
                     message: 'introduction',
                     UID: UID,
+                    name: Data.name,
                     'native': Data.nativeName,
                     sphere: Data.sphereName,
                     paths: Data.pathsName,
@@ -1429,8 +1489,8 @@ function mousewheel(e) {
 
     zoom=uniforms.zoom.value;
     zoom*=1-val/100.0;
-    if(zoom<1)
-        zoom=1;
+    if(zoom<0.1)
+        zoom=0.1;
     uniforms.zoom.value=zoom;
     resize();
     render();
