@@ -506,7 +506,7 @@ function weights(l, x, maxnl) {
     let length;
     let fa, fb, t;
     let p, q, r, q1;
-    let tmp, acosdotpx;
+    let tmp, acosdotpx,acosdotqx;
     const w = {};
 
     const a = 0.5;  // if a = 0, there's no influence of line length on the weights
@@ -526,7 +526,8 @@ function weights(l, x, maxnl) {
     for(i = 0; i<maxnl; i++) {
         for(j = 0; j<l[i].p.length-1; j++) {
            const {p, q, r, q1, length, fa} = l[i].precomputed[j];
-           acosdotpx = Math.acos(dot3D(p, x));
+           acosdotpx = Math.acos(Math.min(1,dot3D(p, x)));
+           acosdotqx = Math.acos(Math.min(1,dot3D(q, x)));
 
             // coordinates
             w.c[2*k + 0] = Math.atan2(dot3D(x, r), dot3D(x, q1));
@@ -534,10 +535,15 @@ function weights(l, x, maxnl) {
 
             // weight
             // transformed coordinate
-            t = acosdotpx/(acosdotpx + Math.acos(dot3D(q, x)));
+            t = acosdotpx/(acosdotpx + acosdotqx);
             tmp = add3D(sca3D(p, 1-t), sca3D(q, t));
-            fb = b + 10*Math.min(Math.min(acosdotpx, Math.acos(dot3D(q, x))), Math.acos(dot3D(tmp, x)));
+            fb = b + 10*Math.min(Math.min(acosdotpx, acosdotqx), Math.acos(Math.min(1,dot3D(tmp, x))));
             w.w[k] = Math.pow(fa/fb, c);
+            if(!w.w[k]) {
+                console.log("Null weight for fa:", fa, "fb:", fb, "c:", c);
+                console.log("b:",b,"acosdotpx:",acosdotpx,"q:",x,"x:",x,"tmp:",tmp);
+                console.log("p:",p,"x:",x,"dot3D(p, x):",dot3D(p, x),"Math.acos(dot3D(p, x)):",Math.acos(dot3D(p, x)));
+            }
             k++;
         }
     }
@@ -796,7 +802,6 @@ function sbn(l1, l2, sph, maxnl) {
 
         // 5. compute x2 = f(x1), applying the previous weights to line set 2
         x2 = transform(l2, w, maxnl);
-
         sph2[j] = x2;
     }
 
