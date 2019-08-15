@@ -68,10 +68,10 @@ function morph(brain1, brain2) {
     const {l2, tr2, sph2, nat2} = brain2;
     let brain2topo1;
 
-    console.log('Morphing...')
-    console.time('Morphing')
+    console.log('Morphing...');
+    console.time('Morphing');
     const sph2topo1 = sbn(l1, l2, sph1); // spherical geometry 2, on topology 1
-    console.timeEnd('Morphing')
+    console.timeEnd('Morphing');
 
     console.log('Resampling mesh...');
     brain2topo1 = resampleMesh(tr2, sph2, nat2, sph2topo1); // native geometry 2, on topology 1
@@ -103,12 +103,14 @@ cli.main(function (args, options) {
 
 const F01Reg = JSON.parse(fs.readFileSync(`${pathBrain1}/sulci.json`).toString());
 const F01Rot = transpose(fs.readFileSync(`${pathBrain1}/rotation.txt`).toString()
-                .split('\n').map((a)=>a.split(' ').map((b)=>parseFloat(b)))
-                .splice(0,4));
+                .split('\n')
+                .map((a) => a.split(' ').map((b) => parseFloat(b)))
+                .splice(0, 4));
 const F16Reg = JSON.parse(fs.readFileSync(`${pathBrain2}/sulci.json`).toString());
 const F16Rot = transpose(fs.readFileSync(`${pathBrain2}/rotation.txt`).toString()
-                .split('\n').map((a)=>a.split(' ').map((b)=>parseFloat(b)))
-                .splice(0,4));
+                .split('\n')
+                .map((a) => a.split(' ').map((b) => parseFloat(b)))
+                .splice(0, 4));
 var l1 = lineset(F01Reg, F01Rot);
 var l2 = lineset(F16Reg, F16Rot);
 var args = [
@@ -120,18 +122,17 @@ var args = [
 
 Promise.all(args)
 .then((meshes) => {
-    console.log(`m1. np: ${meshes[0].p.length}, nt: ${meshes[0].t.length}`);
-    console.log(`m2. np: ${meshes[1].p.length}, nt: ${meshes[1].t.length}`);
-    console.log(`m3. np: ${meshes[2].p.length}, nt: ${meshes[2].t.length}`);
-    console.log(`m4. np: ${meshes[3].p.length}, nt: ${meshes[3].t.length}`);
-    const tr1 = meshes[0].t;
-    const nat1 = meshes[0].p;
-    const tr2 = meshes[2].t;
-    const nat2 = meshes[2].p;
+    console.log(`
+m1. np: ${meshes[0].p.length}, nt: ${meshes[0].t.length}
+m2. np: ${meshes[1].p.length}, nt: ${meshes[1].t.length}
+m3. np: ${meshes[2].p.length}, nt: ${meshes[2].t.length}
+m4. np: ${meshes[3].p.length}, nt: ${meshes[3].t.length}`);
+    const [tr1, nat1] = [meshes[0].t, meshes[0].p];
+    const [tr2, nat2] = [meshes[2].t, meshes[2].p];
     const sph1 = meshes[1].p.map((o)=>transpose(multiply(F01Rot, transpose([[...direction(o), 1]])))[0].slice(0,3));
     const sph2 = meshes[3].p.map((o)=>transpose(multiply(F16Rot, transpose([[...direction(o), 1]])))[0].slice(0,3));
 
-    const {brain2topo1, sphere2topo1} = morph({l1,tr1,sph1,nat1}, {l2,tr2,sph2,nat2});
+    const {brain2topo1, sphere2topo1} = morph({l1, tr1, sph1, nat1}, {l2, tr2, sph2, nat2});
 
     console.log('morph:', brain2topo1.length);
     ply.savePLYGz({p: brain2topo1, t: tr1}, `${pathResult}/surf.ply.gz`);
