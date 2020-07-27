@@ -4,9 +4,13 @@ module.exports = {
         "es6": true,
         "node": true
     },
+    // "standard": {
+    //     "env": ["mocha"]
+    // },
     "extends": "eslint:recommended",
     "parserOptions": {
-        "sourceType": "module"
+        "sourceType": "module",
+        "ecmaVersion": 8
     },
     "rules": {
         "accessor-pairs": "error",
@@ -58,10 +62,7 @@ module.exports = {
         "func-call-spacing": "error",
         "func-name-matching": "error",
         "func-names": "off",
-        "func-style": [
-            "error",
-            "declaration"
-        ],
+        "func-style": "off",
         "function-paren-newline": "off",
         "generator-star-spacing": "error",
         "getter-return": "error",
@@ -71,7 +72,7 @@ module.exports = {
         "id-blacklist": "error",
         "id-length": "off",
         "id-match": "error",
-        "indent": "off",
+        "indent": ["error", 2],
         "indent-legacy": "off",
         "init-declarations": "off",
         "jsx-quotes": "error",
@@ -89,7 +90,7 @@ module.exports = {
         "max-lines": "error",
         "max-nested-callbacks": "error",
         "max-params": "off",
-        "max-statements": "error",
+        "max-statements": ["error", 100],
         "max-statements-per-line": "off",
         "multiline-ternary": [
             "error",
@@ -100,7 +101,7 @@ module.exports = {
         "newline-after-var": "off",
         "newline-before-return": "error",
         "newline-per-chained-call": "error",
-        "no-alert": "error",
+        "no-alert": "off",
         "no-array-constructor": "error",
         "no-await-in-loop": "error",
         "no-bitwise": "off",
@@ -198,7 +199,7 @@ module.exports = {
         "no-useless-rename": "error",
         "no-useless-return": "error",
         "no-var": "off",
-        "no-void": "error",
+        "no-void": "off",
         "no-warning-comments": "error",
         "no-whitespace-before-property": "error",
         "no-with": "error",
@@ -229,7 +230,7 @@ module.exports = {
         "prefer-template": "off",
         "quote-props": "off",
         "quotes": "off",
-        "radix": "error",
+        "radix": "off",
         "require-await": "error",
         "require-jsdoc": "off",
         "rest-spread-spacing": "error",
@@ -268,4 +269,3 @@ module.exports = {
         ]
     }
 };
-
