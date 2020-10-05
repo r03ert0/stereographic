@@ -795,16 +795,15 @@ function initAnnotationOverlay() {
   console.log("> initAnnotationOverlay");
 
   // set up vectorial annotation overlay
-  var height=window.innerHeight;
-  var width=height;
-  /*TEST*/var width=window.innerWidth;
+  var height = window.innerHeight;
+  var width = window.innerWidth;
   $("#overlay").attr('width', width);
   $("#overlay").attr('height', height);
 
   $("svg").width(width);
   $("svg").height(height);
 
-  var [canvas]=$("#overlay");
+  var canvas = document.querySelector("#overlay");
 
   paper.setup(canvas);
   paper.settings.handleSize=10;
