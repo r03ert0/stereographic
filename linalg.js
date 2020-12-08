@@ -1,5 +1,3 @@
-var EPSILON = 1e-10;
-
 /**
  * @function norm3D3D
  * @desc Vector norm

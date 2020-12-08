@@ -5,6 +5,10 @@ const txm = require('texmesh');
 const paper = require('paper');
 paper.setup([5, 5]);
 
+if(typeof EPSILON === "undefined") {
+    var EPSILON = 1e-10;
+}
+
 const pwd = process.argv[1].split('/').slice(0,-1).join('/')+'/'; // own path
 for(var code of [
 //    fs.readFileSync('resample.js'),

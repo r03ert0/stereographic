@@ -1,4 +1,4 @@
-const EPSILON = 1e-6;
+// const EPSILON = 1e-10;
 
 /**
  * Adapted from intersect_RayTriangle()

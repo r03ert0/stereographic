@@ -3,6 +3,7 @@
     linalg.js
 */
 
+var EPSILON = 1e-10;
 var verbose = false;
 
 var sphereHash = [];
@@ -492,6 +493,16 @@ function prepareWeights(l, maxnl) {
     }
 }
 
+function clip(x, min, max) {
+    if(x<min) {
+        x = min;
+    } else if(x>max) {
+        x = max;
+    }
+
+    return x;
+}
+
 /**
   * @function weights
   * @desc Given a line set and a vertex, compute weights using maxnl number of lines
@@ -526,8 +537,8 @@ function weights(l, x, maxnl) {
     for(i = 0; i<maxnl; i++) {
         for(j = 0; j<l[i].p.length-1; j++) {
            const {p, q, r, q1, length, fa} = l[i].precomputed[j];
-           acosdotpx = Math.acos(Math.min(1,dot3D(p, x)));
-           acosdotqx = Math.acos(Math.min(1,dot3D(q, x)));
+           acosdotpx = Math.acos(clip(dot3D(p, x), -1, 1));
+           acosdotqx = Math.acos(clip(dot3D(q, x), -1, 1));
 
             // coordinates
             w.c[2*k + 0] = Math.atan2(dot3D(x, r), dot3D(x, q1));
@@ -540,9 +551,20 @@ function weights(l, x, maxnl) {
             fb = b + 10*Math.min(Math.min(acosdotpx, acosdotqx), Math.acos(Math.min(1,dot3D(tmp, x))));
             w.w[k] = Math.pow(fa/fb, c);
             if(!w.w[k]) {
-                console.log("Null weight for fa:", fa, "fb:", fb, "c:", c);
-                console.log("b:",b,"acosdotpx:",acosdotpx,"q:",x,"x:",x,"tmp:",tmp);
-                console.log("p:",p,"x:",x,"dot3D(p, x):",dot3D(p, x),"Math.acos(dot3D(p, x)):",Math.acos(dot3D(p, x)));
+                console.log(`
+Null weight for fa: ${fa}, fb: ${fb}, c: ${c}
+b: ${b}
+acosdotpx: ${acosdotpx}
+acosdotqx: ${acosdotqx}
+q: ${q}
+x: ${x}
+tmp: ${tmp}
+p: ${p}
+x: ${x}
+dot3D(p, x): ${dot3D(p, x)}
+Math.acos(dot3D(p, x)): ${Math.acos(dot3D(p, x))}
+`
+                );
             }
             k++;
         }
